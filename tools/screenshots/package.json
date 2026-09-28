@@ -1,0 +1,9 @@
+{
+  "name": "plotzilla-screenshots",
+  "private": true,
+  "description": "Captures the README screenshots (make screenshots)",
+  "type": "module",
+  "devDependencies": {
+    "puppeteer-core": "^25.12.0"
+  }
+}

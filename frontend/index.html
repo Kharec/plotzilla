@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Plotzilla</title>
+  </head>
+  <body>
+    <header class="topbar" id="topbar">
+      <div class="win-controls" id="win-left"></div>
+      <div class="brand"><span class="logo" data-icon="logo"></span>Plotzilla</div>
+      <div class="doc">
+        <span id="doc-name" class="doc-name">Untitled</span>
+        <span id="save-state" class="save-state"></span>
+      </div>
+      <div class="spacer"></div>
+
+      <nav class="tools">
+        <div class="group">
+          <button data-action="new" data-icon="new" data-tip="New · Ctrl+N"></button>
+          <button data-action="open" data-icon="open" data-tip="Open · Ctrl+O"></button>
+          <button data-action="save" data-icon="save" data-tip="Save · Ctrl+S"></button>
+        </div>
+        <div class="group">
+          <button id="type-button" class="type-button" data-tip="Element type · Ctrl+1…9">
+            <span class="type-dot"></span><span id="type-label">Action</span><span class="chev" data-icon="chevron"></span>
+          </button>
+        </div>
+        <div class="group">
+          <button data-action="bold" data-icon="bold" data-tip="Bold · Ctrl+B"></button>
+          <button data-action="italic" data-icon="italic" data-tip="Italic · Ctrl+I"></button>
+          <button data-action="underline" data-icon="underline" data-tip="Underline · Ctrl+U"></button>
+          <button data-action="note" data-icon="note" data-tip="Note · Ctrl+Shift+N"></button>
+          <button data-action="dual" data-icon="dual" data-tip="Dual dialogue · Ctrl+D"></button>
+        </div>
+        <div class="group">
+          <button data-action="find" data-icon="search" data-tip="Find and replace · Ctrl+F"></button>
+          <button data-action="spelling" data-icon="spell" data-tip="Spelling · F7"></button>
+          <button data-action="revisions" data-icon="revisions" data-tip="Revisions and locked pages"></button>
+        </div>
+        <div class="group">
+          <button data-action="title" data-icon="title" data-tip="Title page · Ctrl+Shift+T"></button>
+          <button data-action="pdf" data-icon="pdf" data-tip="Export PDF · Ctrl+P"></button>
+          <button data-action="fdx" data-icon="fdx" data-tip="Export to Final Draft · Ctrl+Shift+E"></button>
+        </div>
+        <div class="group">
+          <button data-action="navigator" data-icon="navigator" data-tip="Scenes · Ctrl+\"></button>
+          <button data-action="focus" data-icon="focus" data-tip="Focus mode · Ctrl+Shift+F"></button>
+        </div>
+      </nav>
+      <div class="win-controls" id="win-right"></div>
+    </header>
+
+    <ul id="type-menu" class="menu" hidden></ul>
+
+    <div class="main">
+      <aside class="navigator">
+        <div class="nav-head">
+          <h2>Scenes</h2>
+          <span id="scene-count" class="count"></span>
+        </div>
+        <p id="scene-empty" class="empty">Type <kbd>INT.</kbd> or <kbd>EXT.</kbd> to start your first scene.</p>
+        <ol id="scene-list"></ol>
+        <div class="nav-foot">
+          <label class="switch">
+            <input type="checkbox" id="autosave-toggle" />
+            <span class="track"><span class="thumb"></span></span>
+            Autosave
+          </label>
+        </div>
+      </aside>
+
+      <div class="workspace">
+        <div class="scroller" id="scroller">
+          <div class="paper" id="paper">
+            <div id="editor"></div>
+          </div>
+        </div>
+        <div class="search" id="search" data-mode="find" hidden>
+          <button class="search-toggle" data-search="toggle" data-icon="expand" data-tip="Replace · Ctrl+H"></button>
+          <div class="search-fields">
+            <div class="search-row">
+              <input id="search-input" placeholder="Find" autocomplete="off" spellcheck="false" />
+              <span id="search-count" class="search-count"></span>
+              <button data-search="case" data-icon="matchCase" data-tip="Match case"></button>
+              <button data-search="word" data-icon="wholeWord" data-tip="Whole words"></button>
+              <span class="sep"></span>
+              <button data-search="previous" data-icon="up" data-tip="Previous · Shift+Enter"></button>
+              <button data-search="next" data-icon="down" data-tip="Next · Enter"></button>
+              <button data-search="close" data-icon="close" data-tip="Close · Esc"></button>
+            </div>
+            <div class="search-row replace-row">
+              <input id="replace-input" placeholder="Replace with" autocomplete="off" spellcheck="false" />
+              <button class="text-button" data-search="replace" data-tip="Replace · Enter">Replace</button>
+              <button class="text-button" data-search="replaceAll" data-tip="Replace all · Ctrl+Alt+Enter">All</button>
+            </div>
+          </div>
+        </div>
+        <div class="hud">
+          <span id="st-type" class="hud-type"></span>
+          <span id="st-hint" class="hud-hint"></span>
+          <span class="sep"></span>
+          <span id="st-pages"></span>
+          <span class="sep"></span>
+          <span id="st-words"></span>
+          <span id="st-rev-sep" class="sep" hidden></span>
+          <span id="st-rev" class="hud-rev" hidden></span>
+        </div>
+      </div>
+    </div>
+
+    <dialog id="title-dialog">
+      <form method="dialog">
+        <h2>Title Page</h2>
+        <label>Title <input name="title" autocomplete="off" /></label>
+        <div class="row">
+          <label>Credit <input name="credit" placeholder="Written by" autocomplete="off" /></label>
+          <label>Author(s) <input name="author" autocomplete="off" /></label>
+        </div>
+        <label>Source <input name="source" placeholder="Based on the novel by…" autocomplete="off" /></label>
+        <div class="row">
+          <label>Contact <textarea name="contact" rows="4"></textarea></label>
+          <label>Draft date <textarea name="draftDate" rows="2"></textarea>
+            <span class="sub">Notes</span><textarea name="notes" rows="1"></textarea>
+          </label>
+        </div>
+        <menu>
+          <button value="cancel" formnovalidate>Cancel</button>
+          <button value="ok" class="primary">Done</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="export-dialog">
+      <form method="dialog">
+        <h2>Export PDF</h2>
+        <p class="muted"><span id="export-paper">US Letter</span> · Courier 12 pt · standard margins</p>
+        <label class="check"><input type="checkbox" name="titlePage" checked /> Include title page</label>
+        <label class="check"><input type="checkbox" name="sceneNumbers" /> Scene numbers (shooting script)</label>
+        <label class="check"><input type="checkbox" name="revisions" checked /> Revision marks and page headers</label>
+        <label class="inline">Paper
+          <select name="paper">
+            <option value="">US Letter</option>
+            <option value="a4">A4</option>
+          </select>
+        </label>
+        <menu>
+          <button value="cancel" formnovalidate>Cancel</button>
+          <button value="ok" class="primary">Export…</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="message-dialog" class="message">
+      <form method="dialog">
+        <h2 id="message-title"></h2>
+        <p id="message-text"></p>
+        <menu>
+          <button value="cancel" id="message-cancel" formnovalidate></button>
+          <button value="ok" id="message-ok" class="primary"></button>
+        </menu>
+      </form>
+    </dialog>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
