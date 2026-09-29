@@ -21,6 +21,7 @@ first; `README.md` is the user-facing documentation.
 make            # npm install + vite build + go build → build/bin/plotzilla
 make test       # go test ./internal/...
 make screenshots # regenerate the README images (needs Firefox and pdftoppm)
+make install    # binary + desktop/ files under PREFIX (/usr/local); make uninstall
 make dev        # wails dev (live reload; needs `go install github.com/wailsapp/wails/v2/cmd/wails@latest`)
 ./build/bin/plotzilla path/to/script.fountain
 
@@ -46,6 +47,8 @@ behaviour or shortcuts changed.
 main.go                 Wails bootstrap: frameless translucent window, LANGUAGE=en, CLI file argument
 app.go                  App struct bound to JS: file I/O, dialogs, pagination, autosave recovery
 desktop_linux.go        cgo: desktop light/dark preference for GTK dialogs, window button layout, compositing
+desktop/                app icon (plotzilla.svg, source of truth; plotzilla.png = 256 px render embedded as
+                        the X11 window icon), plotzilla.desktop, MIME types for .fountain/.fdx
 internal/screenplay     the model: Document{TitlePage, Elements, Settings}, Element{Type, Runs, SceneNumber,
                         Dual, Level, Locked}, Run{Text, b/i/u, Note, Rev}, revision set names
 internal/fountain       Fountain parser (parse.go) and writer (write.go), incl. Plotzilla's boneyard data
@@ -364,6 +367,14 @@ change `style.css` too** (and vice versa).
 - `npm` blocks install scripts (esbuild postinstall); the build still works with the bundled
   binary.
 - Vite empties `dist/` on each build; placeholders belong in `frontend/public/`.
+- The icon exists three times: `desktop/plotzilla.svg`, its PNG render (`rsvg-convert -w 256
+  -h 256 desktop/plotzilla.svg -o desktop/plotzilla.png`) and a simplified copy for small sizes,
+  `frontend/public/favicon.svg`, which is also the header bar logo (`.brand .logo`). Change
+  them together. A clapperboard with a fountain pen whose nib ends the last script line on
+  the slate: film and writing.
+- Wayland shows the icon of the `.desktop` file whose name matches the app id (`plotzilla`,
+  from `ProgramName`); the embedded PNG only serves X11. Keep the file name, `StartupWMClass`
+  and `ProgramName` identical.
 - Floating layers over the script (menus, suggestions, HUD) use the opaque `--popover` token:
   translucent backgrounds let the script text bleed through.
 - A `position: fixed` popup anchored to the text must follow scrolling (see `reposition` in
