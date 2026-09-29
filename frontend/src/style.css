@@ -248,20 +248,13 @@ body.backdrop .topbar > * {
   letter-spacing: 0.01em;
 }
 
+/* The application icon (frontend/public/favicon.svg), which draws its own
+   rounded tile. */
 .brand .logo {
-  display: grid;
-  place-items: center;
   width: 30px;
   height: 30px;
-  border-radius: 9px;
-  color: #fff;
-  background: linear-gradient(135deg, #3b82f6, #6366f1);
+  border-radius: 7px;
   box-shadow: 0 4px 14px rgb(59 130 246 / 0.4);
-}
-
-.brand .logo svg {
-  width: 17px;
-  height: 17px;
 }
 
 .doc {

@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 128 128">
+  <!-- Plotzilla's icon (desktop/plotzilla.svg) simplified for 16–32 px:
+       full-bleed tile, no depth edge, no script lines, a bolder pen. -->
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#3b82f6"/>
+      <stop offset="1" stop-color="#6366f1"/>
+    </linearGradient>
+    <clipPath id="bar"><rect x="14" y="56" width="80" height="16"/></clipPath>
+    <clipPath id="arm"><rect x="14" y="32" width="80" height="17" rx="5"/></clipPath>
+  </defs>
+  <rect width="128" height="128" rx="30" fill="url(#tile)"/>
+  <!-- Centred: same space on both sides. -->
+  <g transform="translate(10.55 0)">
+  <g transform="rotate(-16 14 52)">
+    <rect x="14" y="32" width="80" height="17" rx="5" fill="#fff"/>
+    <g clip-path="url(#arm)" fill="#312e81">
+      <path d="M28 32h14l-10 17H18zM56 32h14l-10 17H46zM84 32h14l-10 17H74z"/>
+    </g>
+  </g>
+  <rect x="14" y="56" width="80" height="54" rx="8" fill="#fff"/>
+  <g clip-path="url(#bar)" fill="#312e81">
+    <path d="M24 56h14l-10 16H14zM52 56h14l-10 16H42zM80 56h14l-10 16H70z"/>
+  </g>
+  <g transform="translate(46 100) rotate(-45)" stroke="#fff" stroke-width="5" stroke-linejoin="round">
+    <path d="M0 0 20-10h6v20h-6z" fill="#fbbf24"/>
+    <rect x="26" y="-12" width="38" height="24" rx="12" fill="#312e81"/>
+  </g>
+  </g>
+</svg>
