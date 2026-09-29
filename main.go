@@ -15,6 +15,12 @@ import (
 //go:embed all:frontend/dist
 var assets embed.FS
 
+// icon is the window icon on X11; Wayland compositors take it from the
+// installed .desktop file instead (desktop/plotzilla.desktop).
+//
+//go:embed desktop/plotzilla.png
+var icon []byte
+
 func main() {
 	// The UI is in English: make GTK's own strings (file chooser buttons and
 	// places) match it instead of following the system language.
@@ -46,6 +52,7 @@ func main() {
 		Bind:             []interface{}{app},
 		Linux: &linux.Options{
 			ProgramName:         "plotzilla",
+			Icon:                icon,
 			WindowIsTranslucent: true,
 			WebviewGpuPolicy:    linux.WebviewGpuPolicyOnDemand,
 		},
