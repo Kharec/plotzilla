@@ -11,6 +11,10 @@ version is in the `VERSION` file.
 
 - Arch Linux PKGBUILD (`packaging/arch`).
 
+### Fixed
+
+- Align VERSION on tag
+
 ## [1.1]
 
 ### Added
