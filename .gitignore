@@ -37,3 +37,7 @@ frontend/wailsjs/
 
 # Screenshot tool
 tools/screenshots/node_modules/
+
+# makepkg (packaging/arch)
+packaging/arch/*
+!packaging/arch/PKGBUILD
