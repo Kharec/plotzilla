@@ -1,0 +1,54 @@
+# Maintainer: Sandro Cazzaniga <sandro@cazzaniga.fr>
+
+pkgname=plotzilla
+pkgver=1.2
+pkgrel=1
+pkgdesc='Screenwriting app for Linux: scripts in the Hollywood standard format, Fountain, FDX and PDF'
+arch=('x86_64' 'aarch64')
+url='https://git.kharec.info/Kharec/plotzilla'
+license=('GPL-3.0-only')
+depends=('gtk3' 'webkit2gtk-4.1' 'libsoup3' 'gdk-pixbuf2' 'glib2' 'glibc' 'hicolor-icon-theme')
+makedepends=('git' 'go' 'nodejs' 'npm')
+optdepends=('ttf-courier-prime: the font of the printed page, on screen too'
+            'hunspell-en_us: English spell checking'
+            'hunspell-fr: French spell checking')
+source=("$pkgname::git+$url.git#tag=$pkgver")
+sha256sums=('SKIP')
+
+prepare() {
+  cd "$pkgname"
+  export GOPATH="$srcdir/gopath"
+  go mod download -modcacherw
+  # Downloads belong in prepare(); the build then runs offline.
+  npm ci --prefix frontend --no-audit --no-fund
+}
+
+build() {
+  cd "$pkgname"
+  export GOPATH="$srcdir/gopath"
+  export CGO_CPPFLAGS="$CPPFLAGS"
+  export CGO_CFLAGS="$CFLAGS"
+  export CGO_CXXFLAGS="$CXXFLAGS"
+  export CGO_LDFLAGS="$LDFLAGS"
+  export GOFLAGS='-buildmode=pie -trimpath -mod=readonly -modcacherw'
+
+  npm run build --prefix frontend
+  # The binary embeds frontend/dist; webkit2_41 selects WebKitGTK 4.1.
+  go build -tags desktop,production,webkit2_41 \
+    -ldflags "-linkmode=external -compressdwarf=false" \
+    -o build/bin/plotzilla .
+}
+
+check() {
+  cd "$pkgname"
+  export GOPATH="$srcdir/gopath"
+  go test ./internal/...
+}
+
+package() {
+  cd "$pkgname"
+  # DESTDIR skips the cache updates: pacman's hooks refresh the MIME,
+  # desktop and icon caches.
+  make install DESTDIR="$pkgdir" PREFIX=/usr
+  install -Dm644 README.md CHANGELOG.md -t "$pkgdir/usr/share/doc/$pkgname"
+}
