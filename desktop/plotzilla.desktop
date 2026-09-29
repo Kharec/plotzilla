@@ -1,0 +1,14 @@
+[Desktop Entry]
+Type=Application
+Name=Plotzilla
+GenericName=Screenwriting
+Comment=Write screenplays in the Hollywood standard format
+Exec=plotzilla %f
+TryExec=plotzilla
+Icon=plotzilla
+Terminal=false
+StartupNotify=true
+StartupWMClass=plotzilla
+Categories=Office;WordProcessor;
+Keywords=screenplay;script;screenwriting;fountain;final draft;fdx;film;
+MimeType=text/x-fountain;application/x-fdx;

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Neither format is in shared-mime-info: declare them so file managers
+     offer Plotzilla for .fountain and .fdx files. -->
+<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
+  <mime-type type="text/x-fountain">
+    <comment>Fountain screenplay</comment>
+    <sub-class-of type="text/plain"/>
+    <generic-icon name="text-x-generic"/>
+    <glob pattern="*.fountain"/>
+    <glob pattern="*.spmd"/>
+  </mime-type>
+  <mime-type type="application/x-fdx">
+    <comment>Final Draft screenplay</comment>
+    <sub-class-of type="application/xml"/>
+    <generic-icon name="text-x-generic"/>
+    <glob pattern="*.fdx"/>
+    <root-XML namespaceURI="" localName="FinalDraft"/>
+  </mime-type>
+</mime-info>

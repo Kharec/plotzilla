@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#3b82f6"/>
+      <stop offset="1" stop-color="#6366f1"/>
+    </linearGradient>
+    <linearGradient id="shine" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.22"/>
+      <stop offset="0.5" stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="nib" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#fde68a"/>
+      <stop offset="1" stop-color="#fbbf24"/>
+    </linearGradient>
+    <clipPath id="bar"><rect x="22" y="50" width="68" height="12"/></clipPath>
+    <clipPath id="arm"><rect x="22" y="32" width="68" height="13" rx="4"/></clipPath>
+  </defs>
+
+  <!-- Tile: a GNOME-style rounded square with a darker bottom edge. -->
+  <rect x="8" y="14" width="112" height="106" rx="26" fill="#312e81"/>
+  <rect x="8" y="8" width="112" height="106" rx="26" fill="url(#tile)"/>
+  <rect x="8" y="8" width="112" height="106" rx="26" fill="url(#shine)"/>
+
+  <!-- Artwork: the slate sits in the middle of the tile's face; the pen is
+       short so it does not pull the drawing off centre. -->
+  <g transform="translate(65.25 61) scale(0.94) translate(-57.7 -59.5)">
+  <!-- Clapperboard: the header bar logo, filled. -->
+  <g transform="rotate(-16 22 47)">
+    <rect x="22" y="32" width="68" height="13" rx="4" fill="#fff"/>
+    <g clip-path="url(#arm)" fill="#312e81">
+      <path d="M32 32h11l-8 13H24zM54 32h11l-8 13H46zM76 32h11l-8 13H68z"/>
+    </g>
+  </g>
+  <rect x="22" y="50" width="68" height="52" rx="6" fill="#fff"/>
+  <g clip-path="url(#bar)" fill="#312e81">
+    <path d="M30 50h11l-8 12H22zM52 50h11l-8 12H44zM74 50h11l-8 12H66z"/>
+  </g>
+  <rect x="22" y="62" width="68" height="2.5" fill="#312e81" opacity="0.25"/>
+
+  <!-- A screenplay block being written: character cue, dialogue, and a
+       last line that ends at the pen's nib. -->
+  <g fill="#6366f1">
+    <rect x="46" y="71" width="20" height="4" rx="2"/>
+    <rect x="34" y="80" width="44" height="4" rx="2"/>
+    <rect x="34" y="89" width="15" height="4" rx="2"/>
+  </g>
+
+  <!-- Fountain pen, drawn pointing right from its nib tip, then turned. -->
+  <g transform="translate(51 92) rotate(-45)">
+    <g stroke="#fff" stroke-width="3" stroke-linejoin="round">
+      <path d="M0 0 15-7h6v14h-6z" fill="url(#nib)"/>
+      <rect x="21" y="-7.5" width="9" height="15" rx="2" fill="#1e1b4b"/>
+      <rect x="29" y="-8.5" width="26" height="17" rx="8.5" fill="#312e81"/>
+    </g>
+    <path d="M1.5 0H13" stroke="#b45309" stroke-width="1.6" stroke-linecap="round"/>
+    <circle cx="13" cy="0" r="1.8" fill="#b45309"/>
+    <rect x="34" y="-12" width="14" height="4" rx="2" fill="#fbbf24"/>
+  </g>
+  </g>
+</svg>
