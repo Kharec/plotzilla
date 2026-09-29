@@ -5,6 +5,12 @@ All notable changes to Plotzilla are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). The current
 version is in the `VERSION` file.
 
+## [1.2]
+
+### Added
+
+- Arch Linux PKGBUILD (`packaging/arch`).
+
 ## [1.1]
 
 ### Added
