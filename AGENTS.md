@@ -49,6 +49,7 @@ app.go                  App struct bound to JS: file I/O, dialogs, pagination, a
 desktop_linux.go        cgo: desktop light/dark preference for GTK dialogs, window button layout, compositing
 desktop/                app icon (plotzilla.svg, source of truth; plotzilla.png = 256 px render embedded as
                         the X11 window icon), plotzilla.desktop, MIME types for .fountain/.fdx
+packaging/arch/PKGBUILD Arch package: builds tag $pkgver, installs with `make install`
 internal/screenplay     the model: Document{TitlePage, Elements, Settings}, Element{Type, Runs, SceneNumber,
                         Dual, Level, Locked}, Run{Text, b/i/u, Note, Rev}, revision set names
 internal/fountain       Fountain parser (parse.go) and writer (write.go), incl. Plotzilla's boneyard data
@@ -366,6 +367,10 @@ change `style.css` too** (and vice versa).
 - A literal BOM or other invisible character in Go source breaks `go vet`; write `"﻿"`.
 - `npm` blocks install scripts (esbuild postinstall); the build still works with the bundled
   binary.
+- `packaging/arch/PKGBUILD` builds the git tag `$pkgver` (tags have no `v`: `1.1`): on a
+  release, bump `pkgver` with `VERSION` and push the tag. It installs through
+  `make install DESTDIR=… PREFIX=/usr`, so a new installed file goes in the Makefile, not in
+  the PKGBUILD.
 - Vite empties `dist/` on each build; placeholders belong in `frontend/public/`.
 - The icon exists three times: `desktop/plotzilla.svg`, its PNG render (`rsvg-convert -w 256
   -h 256 desktop/plotzilla.svg -o desktop/plotzilla.png`) and a simplified copy for small sizes,
