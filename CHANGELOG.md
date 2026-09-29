@@ -5,6 +5,14 @@ All notable changes to Plotzilla are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). The current
 version is in the `VERSION` file.
 
+## [1.1]
+
+### Added
+
+- Application icon, used for the window, the launcher, the favicon and the header bar logo.
+- `make install` / `make uninstall`: the binary, a desktop entry, the icon, and MIME types
+  so file managers open `.fountain` and `.fdx` files with Plotzilla.
+
 ## [1.0] - 2026-09-28
 
 ### Added
