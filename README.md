@@ -42,7 +42,13 @@ Requirements (Arch Linux package names): `go` 1.23 or later, `nodejs` 20.19 or l
 ```sh
 make                                  # builds build/bin/plotzilla
 ./build/bin/plotzilla my-film.fountain  # the file argument is optional
+sudo make install                     # optional: adds Plotzilla to the application menu
 ```
+
+`make install` copies the binary to `/usr/local/bin` and adds a desktop entry, the icon, and
+MIME types for `.fountain` and `.fdx` files, so file managers offer to open them with
+Plotzilla. `make install PREFIX=~/.local` installs for your user only (`~/.local/bin` must be in
+your `PATH`); `make uninstall` with the same `PREFIX` removes everything.
 
 Install the Courier Prime font (`ttf-courier-prime` on the AUR) so the text on screen matches
 the PDF exactly. Without it, Plotzilla uses Courier New, Nimbus Mono or Liberation Mono.
@@ -466,6 +472,7 @@ binary embeds `frontend/dist`, so the frontend has to be built first.
 ```
 main.go, app.go        Wails application and the methods the frontend calls
 desktop_linux.go       desktop integration: light/dark preference, window button layout
+desktop/               icon, desktop entry and MIME types installed by `make install`
 internal/screenplay    document model
 internal/fountain      Fountain reader and writer
 internal/fdx           Final Draft reader and writer
