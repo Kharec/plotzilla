@@ -50,6 +50,12 @@ MIME types for `.fountain` and `.fdx` files, so file managers offer to open them
 Plotzilla. `make install PREFIX=~/.local` installs for your user only (`~/.local/bin` must be in
 your `PATH`); `make uninstall` with the same `PREFIX` removes everything.
 
+On Arch Linux, build a package instead, from the tag matching `pkgver`:
+
+```sh
+cd packaging/arch && makepkg -si
+```
+
 Install the Courier Prime font (`ttf-courier-prime` on the AUR) so the text on screen matches
 the PDF exactly. Without it, Plotzilla uses Courier New, Nimbus Mono or Liberation Mono.
 
@@ -473,6 +479,7 @@ binary embeds `frontend/dist`, so the frontend has to be built first.
 main.go, app.go        Wails application and the methods the frontend calls
 desktop_linux.go       desktop integration: light/dark preference, window button layout
 desktop/               icon, desktop entry and MIME types installed by `make install`
+packaging/arch         PKGBUILD for an Arch Linux package
 internal/screenplay    document model
 internal/fountain      Fountain reader and writer
 internal/fdx           Final Draft reader and writer
