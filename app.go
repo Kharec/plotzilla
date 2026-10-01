@@ -33,6 +33,8 @@ type App struct {
 	spellMu     sync.Mutex
 	checker     *spell.Checker
 	checkerLang string
+
+	tr translation
 }
 
 type OpenResult struct {
