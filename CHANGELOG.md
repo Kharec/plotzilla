@@ -5,7 +5,16 @@ All notable changes to Plotzilla are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). The current
 version is in the `VERSION` file.
 
-## [1.2]
+## [1.3] - 2026-10-01
+
+### Added
+
+- Translation of a script, or of the selection, from French to English (`Ctrl+Shift+L`),
+  offline: the OPUS-MT model runs in Go, downloaded once on demand. Sluglines, character
+  extensions, parentheticals, transitions and shots follow English script conventions;
+  character names and text already in English are left as they are.
+
+## [1.2] - 2026-09-29
 
 ### Added
 
@@ -15,7 +24,7 @@ version is in the `VERSION` file.
 
 - Align VERSION on tag
 
-## [1.1]
+## [1.1] - 2026-09-29
 
 ### Added
 
