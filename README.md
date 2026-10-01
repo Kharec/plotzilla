@@ -23,6 +23,7 @@ follows the desktop's window button layout and light/dark preference.
 - [Autocomplete](#autocomplete)
 - [Find and replace](#find-and-replace)
 - [Spelling](#spelling)
+- [Translating from French](#translating-from-french)
 - [Pages and scenes](#pages-and-scenes)
 - [Revisions and locked pages](#revisions-and-locked-pages)
 - [Title page](#title-page)
@@ -61,6 +62,10 @@ the PDF exactly. Without it, Plotzilla uses Courier New, Nimbus Mono or Liberati
 
 Spell checking uses the system's Hunspell dictionaries: install one per language you write in,
 for example `hunspell-en_us`, `hunspell-en_gb` or `hunspell-fr`.
+
+Translation from French needs a model of about 300 MB, which Plotzilla downloads the first time
+it is used (see [Translating from French](#translating-from-french)). A package can install it
+for every user instead, in `/usr/share/plotzilla/models/opus-mt-fr-en`.
 
 ## The editor
 
@@ -265,6 +270,58 @@ missing from the dictionary (`Haustürschlüssel`) is accepted when the dictiona
 parts to be joined, including the compound patterns some dictionaries describe with Hunspell's
 `COMPOUNDRULE`.
 
+## Translating from French
+
+The translate button in the header bar (`Ctrl+Shift+L`) translates a French script into
+English. It runs on your computer, without an internet connection, so a script never leaves it.
+
+- With text selected, the elements the selection touches are translated; otherwise the whole
+  script and its title page are (the title itself is kept).
+- Text that is already in English is left as it is, so you can translate a script a scene at
+  a time, revise the English, and translate the rest later. A translation is undone in one step
+  with `Ctrl+Z`.
+- A progress window shows the sentences translated so far; **Cancel** stops without changing
+  the script.
+
+Each element is translated the way an English script writes it:
+
+| Element | French | English |
+|---|---|---|
+| Scene heading | `INT. CUISINE DE MARIE - NUIT` | `INT. MARIE'S KITCHEN - NIGHT` |
+| | `EXTÉRIEUR RUE - AUBE (FLASH-BACK)` | `EXT. STREET - DAWN (FLASHBACK)` |
+| Character | `PIERRE (VOIX OFF)`, `(H.C.)`, `(SUITE)` | `PIERRE (V.O.)`, `(O.S.)`, `(CONT'D)` |
+| | `LE POLICIER` | `THE POLICEMAN` |
+| Parenthetical | `(un temps)`, `(à voix basse)`, `(à Marie)` | `(beat)`, `(quietly)`, `(to Marie)` |
+| Transition | `FONDU ENCHAÎNÉ :`, `COUPE SUR :`, `FONDU AU NOIR.` | `DISSOLVE TO:`, `CUT TO:`, `FADE TO BLACK.` |
+| Insert / shot | `GROS PLAN SUR LA LETTRE`, `CONTRECHAMP` | `CLOSE ON THE LETTER`, `REVERSE ANGLE` |
+| Action, dialogue | `Marie ? Tu es là ?` | `Marie? Are you there?` |
+
+- Times of day, character extensions, transitions, shots and the usual wrylies come from a
+  table of screenplay terms. Locations, action, dialogue, notes, sections and synopses are
+  translated by the model, one sentence at a time.
+- Character names are kept as they are: `Marie` does not become `Mary`, nor `Pierre` `stone`.
+  A cue is translated only when it is a description starting with an article (`LE POLICIER`).
+- A French transition or shot typed as action, as in a Fountain file (`FONDU AU NOIR.`,
+  `GROS PLAN SUR…`), becomes a transition or an insert.
+- English typography replaces French typography: no space before `?`, `!`, `:` or `;`, and
+  straight quotes instead of guillemets.
+- A sentence is French when its words say so: French words such as `le`, `qui` or `avec`,
+  elisions (`l'homme`), accents, and, when the French and English Hunspell dictionaries are
+  installed, which of the two languages knows its other words. A line too short to tell
+  (`Attends !`, `Oui ?`) follows the elements around it.
+- Notes are translated on their own. Bold, italic or underline that covers only part of a
+  translated sentence is lost, since the words move; emphasis on a whole sentence is kept.
+  Locked pages stay in the same proportion of the translated element, and while revisions are
+  marked, translated text is marked with the current revision set.
+
+The model is [OPUS-MT French–English](https://huggingface.co/Helsinki-NLP/opus-mt-fr-en) by the
+University of Helsinki (Apache 2.0 license). Plotzilla runs it itself, in Go, with nothing else
+to install. The first translation asks to download it (about 300 MB) from Hugging Face into
+`~/.local/share/plotzilla/models/opus-mt-fr-en`; every file is checked against its known
+checksum. The model takes about 300 MB of memory while it is loaded, and is unloaded after five
+minutes without translating. A machine translation is a first draft: read it over, especially
+the dialogue.
+
 ## Pages and scenes
 
 Page breaks are computed by the same engine as the PDF export and drawn live in the editor, with
@@ -448,6 +505,7 @@ that read FDX.
 | `Enter` / `Shift+Enter` in the find field | Next, previous match |
 | `Enter` / `Ctrl+Alt+Enter` in the replace field | Replace, replace all |
 | `F7` | Spell checking on or off |
+| `Ctrl+Shift+L` | Translate the selection, or the whole script, from French to English |
 
 ## Desktop integration
 
@@ -467,6 +525,8 @@ that read FDX.
 
 ```sh
 make test         # Go tests
+PLOTZILLA_MT_MODEL=~/.local/share/plotzilla/models/opus-mt-fr-en go test ./internal/marian
+                  # also test the real translation model, once downloaded
 make screenshots  # regenerate the images of this README (needs Firefox and pdftoppm)
 make dev          # live reload, requires the Wails CLI:
                   # go install github.com/wailsapp/wails/v2/cmd/wails@latest
@@ -477,6 +537,7 @@ binary embeds `frontend/dist`, so the frontend has to be built first.
 
 ```
 main.go, app.go        Wails application and the methods the frontend calls
+translation.go         translation: model download, loading and the Translate method
 desktop_linux.go       desktop integration: light/dark preference, window button layout
 desktop/               icon, desktop entry and MIME types installed by `make install`
 packaging/arch         PKGBUILD for an Arch Linux package
@@ -486,8 +547,11 @@ internal/fdx           Final Draft reader and writer
 internal/layout        line wrapping and pagination, shared by the editor and the PDF
 internal/pdf           PDF generator with no dependencies
 internal/spell         Hunspell dictionary reader and spell checker
+internal/marian        MarianMT translation models in pure Go: SentencePiece, transformer,
+                       beam search, verified download
+internal/translate     French to English script translation, element by element
 frontend/src           editor: schema, commands, autocomplete, page breaks, find, spelling,
-                       revisions and locked pages, interface
+                       revisions and locked pages, translation, interface
 screenshots/           images used in this README
 tools/screenshots      the tool behind `make screenshots`
 ```
