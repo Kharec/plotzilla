@@ -120,6 +120,24 @@ export interface WindowFrame {
   rounded: boolean
 }
 
+/** Whether the translation model is installed, and its download size in bytes. */
+export interface TranslationStatus {
+  installed: boolean
+  size: number
+}
+
+/** A translated element, to put in place of element `index` (flat order). */
+export interface TranslatedElement {
+  index: number
+  element: Element
+}
+
+export interface TranslationResult {
+  changes: TranslatedElement[] | null
+  /** Set when the title page changed. */
+  titlePage?: TitlePage
+}
+
 export interface ExportOptions {
   sceneNumbers: boolean
   titlePage: boolean
@@ -146,6 +164,12 @@ interface GoApp {
   SpellCheck(doc: ScriptDocument, lang: string): Promise<Misspelling[] | null>
   SpellSuggest(word: string, lang: string): Promise<string[] | null>
   AddToDictionary(word: string): Promise<void>
+  TranslationStatus(): Promise<TranslationStatus>
+  /** False if cancelled. Progress: "translation-progress" (bytes done, total). */
+  DownloadTranslationModel(): Promise<boolean>
+  /** Null if cancelled. Progress: "translation-progress" (sentences done, total; 0, 0 while loading). */
+  Translate(doc: ScriptDocument, elements: number[] | null, titlePage: boolean): Promise<TranslationResult | null>
+  CancelTranslation(): Promise<void>
 }
 
 interface WailsRuntime {

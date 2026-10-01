@@ -22,6 +22,7 @@ const paths: Record<string, string> = {
   note: '<path d="M15.5 3H5a2 2 0 0 0-2 2v14c0 1.1.9 2 2 2h14a2 2 0 0 0 2-2V8.5L15.5 3Z"/><path d="M15 3v6h6"/><path d="M7 13h6"/><path d="M7 17h4"/>',
   revisions: '<path d="M12 20h9"/><path d="M16.38 3.62a1 1 0 0 1 3 3L7.37 18.64a2 2 0 0 1-.86.5l-2.87.84a.5.5 0 0 1-.62-.62l.84-2.87a2 2 0 0 1 .5-.86z"/><path d="m15 5 3 3"/>',
   spell: '<path d="m6 16 6-12 6 12"/><path d="M8 12h8"/><path d="m16 20 2 2 4-4"/>',
+  translate: '<path d="m5 8 6 6"/><path d="m4 14 6-6 2-3"/><path d="M2 5h12"/><path d="M7 2h1"/><path d="m22 22-5-10-5 10"/><path d="M14 18h6"/>',
   check: '<path d="M20 6 9 17l-5-5"/>',
   chevron: '<path d="m6 9 6 6 6-6"/>',
   close: '<path d="M17 7 7 17"/><path d="m7 7 10 10"/>',

@@ -131,6 +131,15 @@ export function unlockPages(state: EditorState): Transaction {
   return setLocks(state.tr, new Map()).setMeta(INTERNAL, true).setMeta('addToHistory', false)
 }
 
+/**
+ * Lets a transaction set the locked pages itself (in the elements' `locked`
+ * attribute) instead of the plugin mapping them. Revision marks are then
+ * the transaction's job too.
+ */
+export function ownLocks(tr: Transaction): Transaction {
+  return tr.setMeta(INTERNAL, true)
+}
+
 /** Removes every revision mark; one undo step. */
 export function clearRevisionMarks(state: EditorState): Transaction {
   return state.tr.removeMark(0, state.doc.content.size, schema.marks.revision).setMeta(INTERNAL, true)

@@ -36,6 +36,7 @@ import { buildSpellDecorations, misspellingAt, spellKey, spellPlugin, withoutWor
 import { closeMenu, menuOpen, openMenu, type MenuItem } from './menu'
 import { activeMatch, replaceAll, replaceMatch, searchMatches, searchPlugin, selectMatch, setSearch } from './search'
 import { clearRevisionMarks, lockPages, lockPlugin, revisionPlugin, unlockPages, type CurrentRevision } from './revisions'
+import { applyTranslation, selectedElements } from './translate'
 import { icon } from './icons'
 
 const $ = <T extends HTMLElement>(sel: string) => document.querySelector(sel) as T
@@ -736,6 +737,110 @@ replaceInput.addEventListener('keydown', (e) => {
   e.preventDefault()
 })
 
+// ----------------------------------------------------------- translation
+
+interface ProgressOptions {
+  title: string
+  /** The line under the bar, from Go's progress (a total of 0: not started yet). */
+  describe: (done: number, total: number) => string
+}
+
+/**
+ * Runs a Go task that reports "translation-progress" behind a progress
+ * dialog; closing the dialog (Cancel, Esc) cancels the task.
+ */
+async function withProgress<T>(opts: ProgressOptions, task: () => Promise<T>): Promise<T> {
+  const dialog = $<HTMLDialogElement>('#progress-dialog')
+  const track = $('#progress')
+  const bar = $('#progress-bar')
+  const show = (done: number, total: number) => {
+    track.dataset.state = total ? '' : 'busy'
+    bar.style.transform = total ? `scaleX(${Math.min(1, done / total)})` : ''
+    $('#progress-text').textContent = opts.describe(done, total)
+  }
+  $('#progress-title').textContent = opts.title
+  show(0, 0)
+  const off = runtime.EventsOn('translation-progress', (done, total) => show(Number(done), Number(total)))
+  let running = true
+  dialog.onclose = () => {
+    if (running) api.CancelTranslation().catch(console.error)
+  }
+  typeMenu.hidden = true
+  dialog.showModal()
+  try {
+    return await task()
+  } finally {
+    running = false
+    off()
+    if (dialog.open) dialog.close()
+    view.focus()
+  }
+}
+
+const megabytes = (bytes: number) => Math.round(bytes / 1e6).toLocaleString('en-US')
+
+/**
+ * Translates the French text of the selection, or of the whole script and
+ * its title page, into English, offline. Text already in English is left
+ * as it is, so a script can be translated a part at a time.
+ */
+async function translateScript() {
+  const status = await api.TranslationStatus()
+  if (!status.installed) {
+    const download = await messageBox({
+      title: 'Download the translation model?',
+      text: `Plotzilla translates French into English on this computer, without an internet connection. It needs the OPUS-MT French–English model (${megabytes(status.size)} MB), downloaded once from Hugging Face.`,
+      ok: 'Download',
+      cancel: 'Cancel',
+    })
+    if (!download) return
+    const installed = await withProgress(
+      {
+        title: 'Downloading the translation model',
+        describe: (done, total) => (total ? `${megabytes(done)} of ${megabytes(total)} MB` : 'Connecting…'),
+      },
+      () => api.DownloadTranslationModel(),
+    )
+    if (!installed) return
+  }
+
+  const doc = view.state.doc
+  const elements = selectedElements(view.state)
+  const whole = elements === null
+  const result = await withProgress(
+    {
+      title: whole ? 'Translating the script' : 'Translating the selection',
+      describe: (done, total) =>
+        total ? `${done.toLocaleString('en-US')} of ${total.toLocaleString('en-US')} sentences` : 'Loading the translation model…',
+    },
+    () => api.Translate(toScript(doc, app.titlePage, app.settings), elements, whole),
+  )
+  if (!result) return // cancelled
+  if (view.state.doc !== doc) {
+    await messageBox({
+      title: 'Translation not applied',
+      text: 'The script changed while it was being translated. Translate it again to include the changes.',
+      ok: 'OK',
+    })
+    return
+  }
+  const changes = result.changes ?? []
+  if (changes.length) {
+    view.dispatch(applyTranslation(view.state, changes, app.settings.revisions ?? [], currentRevision()))
+  }
+  if (result.titlePage) {
+    app.titlePage = { ...result.titlePage }
+    markChanged()
+  }
+  if (!changes.length && !result.titlePage) {
+    await messageBox({
+      title: 'Nothing to translate',
+      text: `No French text was found in the ${whole ? 'script' : 'selection'}. Text already in English is left as it is.`,
+      ok: 'OK',
+    })
+  }
+}
+
 // ----------------------------------------------------------------- files
 
 interface MessageOptions {
@@ -877,6 +982,7 @@ const actions: Record<string, () => unknown> = {
   underline: () => toggleMark(schema.marks.underline)(view.state, view.dispatch),
   note: () => toggleMark(schema.marks.note)(view.state, view.dispatch),
   revisions: revisionsMenu,
+  translate: translateScript,
   dual: () => toggleDual(view.state, view.dispatch),
   navigator() {
     document.body.classList.toggle('no-navigator')
@@ -931,6 +1037,7 @@ const shortcuts: Record<string, string> = {
   f3: 'findNext',
   'shift+f3': 'findPrevious',
   f7: 'toggleSpelling',
+  'ctrl+shift+l': 'translate',
   'ctrl+=': 'zoomIn',
   'ctrl++': 'zoomIn',
   'ctrl+-': 'zoomOut',

@@ -38,6 +38,7 @@
           <button data-action="find" data-icon="search" data-tip="Find and replace · Ctrl+F"></button>
           <button data-action="spelling" data-icon="spell" data-tip="Spelling · F7"></button>
           <button data-action="revisions" data-icon="revisions" data-tip="Revisions and locked pages"></button>
+          <button data-action="translate" data-icon="translate" data-tip="Translate French to English · Ctrl+Shift+L"></button>
         </div>
         <div class="group">
           <button data-action="title" data-icon="title" data-tip="Title page · Ctrl+Shift+T"></button>
@@ -159,6 +160,17 @@
         <menu>
           <button value="cancel" id="message-cancel" formnovalidate></button>
           <button value="ok" id="message-ok" class="primary"></button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="progress-dialog" class="message">
+      <form method="dialog">
+        <h2 id="progress-title"></h2>
+        <p id="progress-text"></p>
+        <div class="progress" id="progress"><div class="progress-bar" id="progress-bar"></div></div>
+        <menu>
+          <button value="cancel" id="progress-cancel">Cancel</button>
         </menu>
       </form>
     </dialog>

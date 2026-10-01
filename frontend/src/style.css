@@ -1539,6 +1539,40 @@ dialog.message p {
   user-select: text;
 }
 
+/* Progress of a download or a translation. The bar is scaled, not resized,
+   so only transform is animated; without a total it sweeps back and forth. */
+.progress {
+  height: 6px;
+  margin: -4px 0 18px;
+  border-radius: 3px;
+  background: var(--accent-soft);
+  overflow: hidden;
+}
+
+.progress-bar {
+  height: 100%;
+  border-radius: 3px;
+  background: var(--accent);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.3s var(--ease);
+}
+
+.progress[data-state='busy'] .progress-bar {
+  width: 30%;
+  transform: none;
+  animation: sweep 1.2s var(--ease) infinite alternate;
+}
+
+@keyframes sweep {
+  from {
+    translate: 0;
+  }
+  to {
+    translate: 233%;
+  }
+}
+
 dialog menu button:focus-visible {
   outline: 2px solid var(--accent-2);
   outline-offset: 2px;
