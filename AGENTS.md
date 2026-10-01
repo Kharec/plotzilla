@@ -46,6 +46,8 @@ behaviour or shortcuts changed.
 ```
 main.go                 Wails bootstrap: frameless translucent window, LANGUAGE=en, CLI file argument
 app.go                  App struct bound to JS: file I/O, dialogs, pagination, autosave recovery
+translation.go          App methods for translation: model status/download (pinned files + SHA-256),
+                        Translate, CancelTranslation, model loaded lazily and freed after 5 min idle
 desktop_linux.go        cgo: desktop light/dark preference for GTK dialogs, window button layout, compositing
 desktop/                app icon (plotzilla.svg, source of truth; plotzilla.png = 256 px render embedded as
                         the X11 window icon), plotzilla.desktop, MIME types for .fountain/.fdx
@@ -58,6 +60,10 @@ internal/layout         line wrapping + pagination (paper sizes, locked pages); 
                         for page geometry
 internal/pdf            hand-written PDF 1.4 writer, standard Courier fonts, zero dependencies
 internal/spell          Hunspell .aff/.dic reader, checker (compounds too), suggestions, word scan
+internal/marian         MarianMT (OPUS-MT) inference in pure Go: safetensors, SentencePiece unigram,
+                        transformer encoder-decoder, beam search, verified download
+internal/translate      French → English script translation: language detection, screenplay term
+                        tables, per-element rules, name protection, parallel sentence translation
 frontend/index.html     app shell: header bar, navigator, paper, HUD, <dialog>s
 frontend/src/main.ts    app controller: state, save/autosave, pagination loop, navigator, menus, shortcuts, window frame
 frontend/src/schema.ts  ProseMirror schema + conversion PM doc ⇄ ScriptDocument JSON
@@ -68,6 +74,7 @@ frontend/src/decorations.ts live page-break widgets + empty-element placeholder
 frontend/src/search.ts  find & replace: query, match highlights, next/previous, replace (all)
 frontend/src/spellcheck.ts misspelling underlines (from Go), word under the cursor left alone
 frontend/src/menu.ts    popup menus with keyboard navigation (spelling corrections, languages)
+frontend/src/translate.ts elements covered by the selection, the transaction applying a translation
 frontend/src/backend.ts typed wrappers for window.go.main.App and the Wails runtime
 frontend/src/icons.ts   inline Lucide-style SVG icons
 frontend/src/style.css  the whole UI theme (dark, blue) and the on-screen page geometry
@@ -201,6 +208,14 @@ change `style.css` too** (and vice versa).
   itself is unknown (`Dictionary.accepts`): parts need COMPOUNDFLAG or the BEGIN/MIDDLE/LAST
   flag of their position; the first part may take a prefix, the last a suffix, any other affix
   needs COMPOUNDPERMITFLAG in its continuation classes. Suggestions do not build compounds.
+- Translation (`Ctrl+Shift+L`) runs in Go, offline: `internal/marian` runs the OPUS-MT fr-en
+  model (Hugging Face form: `config.json`, `model.safetensors`, `source.spm`, `target.spm`,
+  `vocab.json`), downloaded on demand into `~/.local/share/plotzilla/models/opus-mt-fr-en`
+  (also looked up in `$XDG_DATA_DIRS/plotzilla/models/`). `translate.Document` returns the
+  changed elements (flat indexes) and the title page; the frontend replaces them in one
+  transaction (`applyTranslation`), only if the doc is unchanged. Both tasks report progress
+  with the `translation-progress` event (done, total; `0, 0` while loading) and stop on
+  `CancelTranslation`, returning `nil`/`false` (not an error) when cancelled.
 - Find & replace is frontend-only (`search.ts`): matches are computed on `blockText`, where one
   character is one document position. Replacements go through `replaceText()` (commands.ts),
   which keeps the marks, and each one is its own undo step (`closeHistory`).
@@ -231,10 +246,32 @@ change `style.css` too** (and vice versa).
   on other goroutines. `query_window_frame` shows how to get an answer back synchronously
   (refcounted request + `GCond` with a timeout); never call it from the main thread.
 
+### Translation rules (`internal/translate`)
+
+- Text is translated only when it reads as French (`scores`: function words, elisions,
+  accents, then the Hunspell lexicon when both fr and en dictionaries exist). Ties follow the
+  other sentences of the text, then the nearest decided element (`languages`). Translating
+  twice must change nothing (`TestIdempotent`).
+- Two passes: the rules run once collecting the sentences to translate (`mt` records them),
+  the model translates the unique sentences in parallel, then the rules run again with the
+  results. Keep the rules deterministic and free of side effects.
+- Fixed terms (times of day, extensions, transitions, shots, wrylies, credits) are tables in
+  `rules.go`, keyed by `fold` (capitals, no accents). The English shots must start with a
+  prefix the Fountain parser knows (`shotRe` in `fountain/parse.go`).
+- Character names (cues without an article) are swapped for invented `placeholders` before the
+  model sees them and put back after: OPUS-MT translates names (`Marie` → `Mary`). A new
+  placeholder must be checked against the model (some get altered: `Nuvrak` → `Nukrak`).
+- Capitals are translated in lower case (`caps` mode) and slugline locations with a French
+  article added and the English one removed (`location` mode): the model mistranslates both
+  otherwise (`CUISINE DE MARIE` → `MARIE CUISINE`).
+
 ## 5. Testing
 
 - Go: unit tests live next to each package (`make test`). Add a test for every parser,
   writer or pagination change; round-trip tests (`Parse(Write(doc)) == doc`) protect formats.
+- Translation: `internal/translate` tests use a fake translator and lexicon. The real model runs
+  in `TestRealModel` when `PLOTZILLA_MT_MODEL` names its directory; `TestTinyModel` covers the
+  whole Marian pipeline on a random 8-dimension model written by the test.
 - PDF visual check: `PLOTZILLA_PDF=/tmp/x.pdf go test ./internal/pdf`, then
   `pdftoppm -png -r 60 /tmp/x.pdf /tmp/page` and look at the image, or
   `pdftotext -layout /tmp/x.pdf -` to check columns.
@@ -362,6 +399,9 @@ change `style.css` too** (and vice versa).
   reading. Revised text is `<Text RevisionID="n">`, the sets a `<Revisions>` block named
   `Blue Revision - date`. The exact Final Draft schema for these (ScriptNote placement,
   Revisions attributes) was written from memory, not checked against Final Draft itself.
+- The translation transaction carries the `ownLocks` meta (revisions.ts): replacing a whole
+  element would make `lockPlugin` move its locked pages to the element's start, so Go remaps
+  them (`remapLocks`, proportionally) and the transaction adds the revision mark itself.
 - COMPOUNDRULE parts are bare dictionary words (no affixes), as in Hunspell; the first
   COMPOUNDRULE line is the rule count.
 - A literal BOM or other invisible character in Go source breaks `go vet`; write `"﻿"`.
