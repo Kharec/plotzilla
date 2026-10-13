@@ -5,6 +5,15 @@ All notable changes to Plotzilla are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). The current
 version is in the `VERSION` file.
 
+## [Unreleased]
+
+### Fixed
+
+- The Cancel button responds while the translation model is loading.
+- The translation model download resumes where it stopped after an interruption, skips files
+  already downloaded, and reports a stalled connection instead of hanging. A model directory
+  with missing or truncated files is offered for download again instead of failing to load.
+
 ## [1.3] - 2026-10-01
 
 ### Added
