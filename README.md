@@ -318,9 +318,9 @@ The model is [OPUS-MT French–English](https://huggingface.co/Helsinki-NLP/opus
 University of Helsinki (Apache 2.0 license). Plotzilla runs it itself, in Go, with nothing else
 to install. The first translation asks to download it (about 300 MB) from Hugging Face into
 `~/.local/share/plotzilla/models/opus-mt-fr-en`; every file is checked against its known
-checksum. The model takes about 300 MB of memory while it is loaded, and is unloaded after five
-minutes without translating. A machine translation is a first draft: read it over, especially
-the dialogue.
+checksum, and an interrupted download resumes where it stopped. The model takes about 300 MB of
+memory while it is loaded, and is unloaded after five minutes without translating. A machine
+translation is a first draft: read it over, especially the dialogue.
 
 ## Pages and scenes
 
