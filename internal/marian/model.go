@@ -79,8 +79,12 @@ type Model struct {
 	activation func(float32) float32
 }
 
-// Load reads the model in dir.
-func Load(dir string) (*Model, error) {
+// Load reads the model in dir. The load can take seconds for a large
+// model: it stops early when ctx is cancelled.
+func Load(ctx context.Context, dir string) (*Model, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	var cfg config
 	data, err := os.ReadFile(filepath.Join(dir, "config.json"))
 	if err != nil {
@@ -130,7 +134,10 @@ func Load(dir string) (*Model, error) {
 	}
 	m.unk = m.ids["<unk>"]
 
-	tensors, err := readSafetensors(filepath.Join(dir, "model.safetensors"))
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	tensors, err := readSafetensors(ctx, filepath.Join(dir, "model.safetensors"))
 	if err != nil {
 		return nil, fmt.Errorf("reading model.safetensors: %w", err)
 	}

@@ -127,7 +127,7 @@ func TestSentencePiece(t *testing.T) {
 func TestSafetensors(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "m.safetensors")
 	writeSafetensors(t, path, []testTensor{{"w", []int{2, 2}, []float32{1, -2, 3.5, 0}}})
-	got, err := readSafetensors(path)
+	got, err := readSafetensors(context.Background(), path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -141,7 +141,7 @@ func TestSafetensors(t *testing.T) {
 	data = append(data, h...)
 	data = append(data, 0x00, 0x3c, 0x00, 0xc0, 0x80, 0x3f) // 1, -2 (F16), 1 (BF16)
 	writeFile(t, path, data)
-	got, err = readSafetensors(path)
+	got, err = readSafetensors(context.Background(), path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -151,7 +151,7 @@ func TestSafetensors(t *testing.T) {
 
 	h = []byte(`{"a":{"dtype":"F32","shape":[3],"data_offsets":[0,4]}}`)
 	writeFile(t, path, append(binary.LittleEndian.AppendUint64(nil, uint64(len(h))), append(h, 0, 0, 0, 0)...))
-	if _, err := readSafetensors(path); err == nil {
+	if _, err := readSafetensors(context.Background(), path); err == nil {
 		t.Error("shape mismatch accepted")
 	}
 }
@@ -254,7 +254,7 @@ func TestTinyModel(t *testing.T) {
 	if !Installed(dir) {
 		t.Fatal("tiny model not installed")
 	}
-	m, err := Load(dir)
+	m, err := Load(context.Background(), dir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -284,7 +284,7 @@ func TestTinyModel(t *testing.T) {
 	if Installed(dir) {
 		t.Error("incomplete model reported installed")
 	}
-	if _, err := Load(dir); err == nil {
+	if _, err := Load(context.Background(), dir); err == nil {
 		t.Error("incomplete model loaded")
 	}
 }
@@ -297,7 +297,7 @@ func TestRealModel(t *testing.T) {
 	if dir == "" {
 		t.Skip("PLOTZILLA_MT_MODEL not set")
 	}
-	m, err := Load(dir)
+	m, err := Load(context.Background(), dir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -315,12 +315,23 @@ func TestRealModel(t *testing.T) {
 func TestDownload(t *testing.T) {
 	content := []byte("model weights")
 	sum := sha256.Sum256(content)
+	var requests int
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/missing" {
+		requests++
+		switch r.URL.Path {
+		case "/missing":
 			http.NotFound(w, r)
-			return
+		case "/full": // a server without resume support
+			w.Write(content)
+		default:
+			var off int
+			if _, err := fmt.Sscanf(r.Header.Get("Range"), "bytes=%d-", &off); err == nil && off > 0 && off < len(content) {
+				w.WriteHeader(http.StatusPartialContent)
+				w.Write(content[off:])
+				return
+			}
+			w.Write(content)
 		}
-		w.Write(content)
 	}))
 	defer srv.Close()
 	dir := filepath.Join(t.TempDir(), "model")
@@ -332,6 +343,52 @@ func TestDownload(t *testing.T) {
 	}
 	if got, _ := os.ReadFile(filepath.Join(dir, "f.bin")); string(got) != string(content) || last != file.Size {
 		t.Errorf("downloaded %q, progress %d", got, last)
+	}
+
+	// A file already downloaded and verified is skipped.
+	if err := Download(context.Background(), srv.Client(), dir, []RemoteFile{file}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if requests != 1 {
+		t.Errorf("a complete file was downloaded again (%d requests)", requests)
+	}
+
+	// An interrupted download resumes its partial file.
+	resumed := file
+	resumed.Name, resumed.URL = "r.bin", srv.URL+"/r"
+	writeFile(t, filepath.Join(dir, ".r.bin.partial"), content[:6])
+	if err := Download(context.Background(), srv.Client(), dir, []RemoteFile{resumed}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := os.ReadFile(filepath.Join(dir, "r.bin")); string(got) != string(content) {
+		t.Errorf("resumed download = %q", got)
+	}
+
+	// A server that cannot resume answers the whole file: the partial
+	// download is restarted.
+	full := file
+	full.Name, full.URL = "full.bin", srv.URL+"/full"
+	writeFile(t, filepath.Join(dir, ".full.bin.partial"), content[:6])
+	if err := Download(context.Background(), srv.Client(), dir, []RemoteFile{full}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := os.ReadFile(filepath.Join(dir, "full.bin")); string(got) != string(content) {
+		t.Errorf("restarted download = %q", got)
+	}
+
+	// A corrupt partial file fails the digest check and is removed: the
+	// next download starts from scratch.
+	corrupt := file
+	corrupt.Name, corrupt.URL = "c.bin", srv.URL+"/c"
+	writeFile(t, filepath.Join(dir, ".c.bin.partial"), []byte("garbag"))
+	if err := Download(context.Background(), srv.Client(), dir, []RemoteFile{corrupt}, nil); err == nil {
+		t.Error("corrupt partial file accepted")
+	}
+	if _, err := os.Stat(filepath.Join(dir, ".c.bin.partial")); err == nil {
+		t.Error("corrupt partial file kept")
+	}
+	if err := Download(context.Background(), srv.Client(), dir, []RemoteFile{corrupt}, nil); err != nil {
+		t.Fatal(err)
 	}
 
 	bad := file
@@ -348,8 +405,13 @@ func TestDownload(t *testing.T) {
 			t.Errorf("%s: a failed download left the file", f.Name)
 		}
 	}
-	entries, _ := os.ReadDir(dir)
-	if len(entries) != 1 {
-		t.Errorf("temporary files left: %v", entries)
+	// Only the interrupted download keeps a partial file, to be resumed.
+	for _, f := range []RemoteFile{bad, missing} {
+		if _, err := os.Stat(filepath.Join(dir, "."+f.Name+".partial")); err == nil {
+			t.Errorf("%s: a failed download left a partial file", f.Name)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(dir, ".short.bin.partial")); err != nil {
+		t.Error("an interrupted download left no partial file to resume")
 	}
 }

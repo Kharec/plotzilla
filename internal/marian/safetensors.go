@@ -1,6 +1,7 @@
 package marian
 
 import (
+	"context"
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
@@ -27,7 +28,7 @@ type tensorInfo struct {
 // little-endian header length, a JSON header, then the raw data) as
 // float32. F32 tensors are read straight into their slice: the file is
 // large and a second copy would double the memory needed to load it.
-func readSafetensors(path string) (map[string]tensor, error) {
+func readSafetensors(ctx context.Context, path string) (map[string]tensor, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, err
@@ -53,6 +54,9 @@ func readSafetensors(path string) (map[string]tensor, error) {
 	for name, raw := range infos {
 		if name == "__metadata__" {
 			continue
+		}
+		if err := ctx.Err(); err != nil {
+			return nil, err
 		}
 		var info tensorInfo
 		if err := json.Unmarshal(raw, &info); err != nil {

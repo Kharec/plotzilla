@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -28,7 +29,13 @@ const (
 	// modelIdle is how long the model (300 MB of memory) stays loaded
 	// after a translation, ready for the next one.
 	modelIdle = 5 * time.Minute
+	// stallTimeout is how long a download may go without receiving a byte
+	// (or its response headers) before it is aborted as stalled.
+	stallTimeout = 30 * time.Second
 )
+
+// errStalled aborts a download that receives nothing for stallTimeout.
+var errStalled = errors.New("the download stalled (no data received for 30 seconds)")
 
 var modelFiles = []marian.RemoteFile{
 	{Name: "config.json", Size: 1416, SHA256: "b3be13d046d9899d7aab8cf4ed624d9a79f5776038ba793f6b4d2ce3e02192f7"},
@@ -46,6 +53,7 @@ type translation struct {
 	lexicon translate.Lexicon
 	release *time.Timer
 	cancel  context.CancelFunc
+	done    chan struct{} // closed when the running task is over
 }
 
 // TranslationStatus says whether the model is installed, and how much a
@@ -72,13 +80,27 @@ func modelDirs() []string {
 	return dirs
 }
 
+// installedModel returns the first model directory holding every file at
+// its pinned size. Checking the digests would mean reading 300 MB on
+// every call; the sizes catch truncated or stale files, and the digests
+// were checked when the files were downloaded.
 func installedModel() string {
 	for _, d := range modelDirs() {
-		if marian.Installed(d) {
+		if modelComplete(d) {
 			return d
 		}
 	}
 	return ""
+}
+
+func modelComplete(dir string) bool {
+	for _, f := range modelFiles {
+		st, err := os.Stat(filepath.Join(dir, f.Name))
+		if err != nil || st.Size() != f.Size {
+			return false
+		}
+	}
+	return true
 }
 
 func (a *App) TranslationStatus() TranslationStatus {
@@ -94,10 +116,11 @@ func (a *App) startTask() (context.Context, error) {
 	a.tr.mu.Lock()
 	defer a.tr.mu.Unlock()
 	if a.tr.cancel != nil {
-		return nil, errors.New("a translation is already running")
+		return nil, errors.New("a translation task is already running")
 	}
 	ctx, cancel := context.WithCancel(a.ctx)
 	a.tr.cancel = cancel
+	a.tr.done = make(chan struct{})
 	return ctx, nil
 }
 
@@ -107,16 +130,22 @@ func (a *App) endTask() {
 	if a.tr.cancel != nil {
 		a.tr.cancel()
 		a.tr.cancel = nil
+		close(a.tr.done)
+		a.tr.done = nil
 	}
 }
 
-// CancelTranslation stops the running download or translation.
+// CancelTranslation stops the running download or translation, waiting
+// for it to wind down so that a new task can start right away.
 func (a *App) CancelTranslation() {
 	a.tr.mu.Lock()
-	defer a.tr.mu.Unlock()
-	if a.tr.cancel != nil {
-		a.tr.cancel()
+	cancel, done := a.tr.cancel, a.tr.done
+	a.tr.mu.Unlock()
+	if cancel == nil {
+		return
 	}
+	cancel()
+	<-done
 }
 
 // progressEmitter sends "translation-progress" events, at most every
@@ -136,8 +165,12 @@ func (a *App) progressEmitter() func(done, total int64) {
 }
 
 // DownloadTranslationModel downloads the model into the user's data
-// directory. It returns false if the user cancelled.
+// directory. An interrupted download resumes where it stopped. It returns
+// false if the user cancelled.
 func (a *App) DownloadTranslationModel() (bool, error) {
+	if installedModel() != "" {
+		return true, nil
+	}
 	ctx, err := a.startTask()
 	if err != nil {
 		return false, err
@@ -148,11 +181,30 @@ func (a *App) DownloadTranslationModel() (bool, error) {
 		f.URL = modelURL + f.Name
 		files[i] = f
 	}
-	err = marian.Download(ctx, &http.Client{}, modelDirs()[0], files, a.progressEmitter())
-	if errors.Is(err, context.Canceled) {
-		return false, nil
+	// No total timeout (300 MB can take a while) but abort a stalled
+	// transfer: the watchdog is reset by every progress report.
+	ctx, stop := context.WithCancelCause(ctx)
+	defer stop(nil)
+	emit := a.progressEmitter()
+	stalled := time.AfterFunc(stallTimeout, func() { stop(errStalled) })
+	defer stalled.Stop()
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.ResponseHeaderTimeout = stallTimeout
+	client := &http.Client{Transport: transport}
+	err = marian.Download(ctx, client, modelDirs()[0], files, func(done, total int64) {
+		stalled.Reset(stallTimeout)
+		emit(done, total)
+	})
+	if err != nil {
+		if errors.Is(context.Cause(ctx), errStalled) {
+			return false, errStalled
+		}
+		if errors.Is(err, context.Canceled) {
+			return false, nil
+		}
+		return false, err
 	}
-	return err == nil, err
+	return true, nil
 }
 
 // Translate translates the French text of the elements (flat indexes; all
@@ -164,8 +216,14 @@ func (a *App) Translate(doc screenplay.Document, elements []int, titlePage bool)
 		return nil, err
 	}
 	defer a.endTask()
+	if installedModel() == "" {
+		return nil, errors.New("the translation model is not installed")
+	}
 	wails.EventsEmit(a.ctx, "translation-progress", 0, 0) // loading
-	model, lexicon, err := a.translator()
+	model, lexicon, err := a.translator(ctx)
+	if errors.Is(err, context.Canceled) {
+		return nil, nil
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -189,38 +247,60 @@ func (a *App) Translate(doc screenplay.Document, elements []int, titlePage bool)
 }
 
 // translator returns the model and the dictionaries that help tell French
-// from English, loading them the first time.
-func (a *App) translator() (*marian.Model, translate.Lexicon, error) {
+// from English, loading them the first time. The load happens without
+// a.tr.mu: reading 300 MB takes seconds, and CancelTranslation must stay
+// responsive.
+func (a *App) translator(ctx context.Context) (*marian.Model, translate.Lexicon, error) {
 	a.tr.mu.Lock()
-	defer a.tr.mu.Unlock()
 	if a.tr.release != nil {
 		a.tr.release.Stop()
 	}
-	if a.tr.model == nil {
-		dir := installedModel()
-		if dir == "" {
-			return nil, nil, errors.New("the translation model is not installed")
-		}
-		m, err := marian.Load(dir)
-		if err != nil {
-			return nil, nil, err
-		}
-		a.tr.model = m
-		a.tr.lexicon = loadLexicon()
+	model, lexicon := a.tr.model, a.tr.lexicon
+	a.tr.mu.Unlock()
+	if model != nil {
+		return model, lexicon, nil
 	}
-	return a.tr.model, a.tr.lexicon, nil
+	dir := installedModel()
+	if dir == "" {
+		return nil, nil, errors.New("the translation model is not installed")
+	}
+	m, err := marian.Load(ctx, dir)
+	if err != nil {
+		if ctx.Err() != nil {
+			return nil, nil, ctx.Err()
+		}
+		return nil, nil, fmt.Errorf("loading the translation model: %w", err)
+	}
+	lexicon = loadLexicon()
+	a.tr.mu.Lock()
+	if ctx.Err() == nil { // cancelled while loading: cache nothing
+		a.tr.model, a.tr.lexicon = m, lexicon
+	}
+	a.tr.mu.Unlock()
+	if err := ctx.Err(); err != nil {
+		return nil, nil, err
+	}
+	return m, lexicon, nil
 }
 
+// releaseLater frees the model once it has been unused for modelIdle.
 func (a *App) releaseLater() {
 	a.tr.mu.Lock()
 	defer a.tr.mu.Unlock()
-	a.tr.release = time.AfterFunc(modelIdle, func() {
-		a.tr.mu.Lock()
-		defer a.tr.mu.Unlock()
-		if a.tr.cancel == nil {
-			a.tr.model, a.tr.lexicon = nil, nil
-		}
-	})
+	a.tr.release = time.AfterFunc(modelIdle, a.releaseModel)
+}
+
+// releaseModel frees the model when no task is running. When one is (a
+// download loads nothing but holds the task slot), it tries again after
+// another modelIdle.
+func (a *App) releaseModel() {
+	a.tr.mu.Lock()
+	defer a.tr.mu.Unlock()
+	if a.tr.cancel != nil {
+		a.tr.release = time.AfterFunc(modelIdle, a.releaseModel)
+		return
+	}
+	a.tr.model, a.tr.lexicon = nil, nil
 }
 
 // lexicon tells French words from English ones with the installed
