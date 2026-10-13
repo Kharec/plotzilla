@@ -568,3 +568,6 @@ scripts in the PDF.
 
 Plotzilla is free software, released under the GNU General Public License v3.0. See
 [LICENSE](LICENSE).
+
+The model downloaded for translation is separate: [OPUS-MT French–English](https://huggingface.co/Helsinki-NLP/opus-mt-fr-en),
+by the University of Helsinki, is released under the Apache 2.0 license.
