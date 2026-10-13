@@ -46,8 +46,9 @@ behaviour or shortcuts changed.
 ```
 main.go                 Wails bootstrap: frameless translucent window, LANGUAGE=en, CLI file argument
 app.go                  App struct bound to JS: file I/O, dialogs, pagination, autosave recovery
-translation.go          App methods for translation: model status/download (pinned files + SHA-256),
-                        Translate, CancelTranslation, model loaded lazily and freed after 5 min idle
+translation.go          App methods for translation: model status/download (pinned files + SHA-256,
+                        resumable), Translate, CancelTranslation, model loaded lazily and freed
+                        after 5 min idle
 desktop_linux.go        cgo: desktop light/dark preference for GTK dialogs, window button layout, compositing
 desktop/                app icon (plotzilla.svg, source of truth; plotzilla.png = 256 px render embedded as
                         the X11 window icon), plotzilla.desktop, MIME types for .fountain/.fdx
@@ -211,11 +212,16 @@ change `style.css` too** (and vice versa).
 - Translation (`Ctrl+Shift+L`) runs in Go, offline: `internal/marian` runs the OPUS-MT fr-en
   model (Hugging Face form: `config.json`, `model.safetensors`, `source.spm`, `target.spm`,
   `vocab.json`), downloaded on demand into `~/.local/share/plotzilla/models/opus-mt-fr-en`
-  (also looked up in `$XDG_DATA_DIRS/plotzilla/models/`). `translate.Document` returns the
+  (also looked up in `$XDG_DATA_DIRS/plotzilla/models/`). The download resumes the `.partial`
+  files an interruption left, skips files already downloaded, and aborts when nothing arrives
+  for 30 s; a directory only counts as installed when every file has its pinned size.
+  `translate.Document` returns the
   changed elements (flat indexes) and the title page; the frontend replaces them in one
   transaction (`applyTranslation`), only if the doc is unchanged. Both tasks report progress
   with the `translation-progress` event (done, total; `0, 0` while loading) and stop on
-  `CancelTranslation`, returning `nil`/`false` (not an error) when cancelled.
+  `CancelTranslation`, returning `nil`/`false` (not an error) when cancelled. The model loads
+  without holding the translation lock (and `marian.Load` takes the context) so Cancel stays
+  responsive during the seconds-long load; `CancelTranslation` waits for the task to wind down.
 - Find & replace is frontend-only (`search.ts`): matches are computed on `blockText`, where one
   character is one document position. Replacements go through `replaceText()` (commands.ts),
   which keeps the marks, and each one is its own undo step (`closeHistory`).
