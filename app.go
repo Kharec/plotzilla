@@ -386,20 +386,48 @@ func (a *App) saveDialog(title, current, ext string, filters []runtime.FileFilte
 	return path, nil
 }
 
+// writeAtomic writes data to path atomically and durably: a temporary file
+// in the same directory is written, given the file's permissions and synced
+// to disk, then renamed over path and the directory itself synced, so a
+// power cut just after a save cannot leave an empty script behind (the very
+// failure autosave, which calls this every 1.2 s, exists to prevent). A
+// symlinked path is resolved first: the file it points to is replaced, not
+// the link. An existing file keeps its permissions; a new one gets 0o644.
 func writeAtomic(path string, data []byte) error {
+	if target, err := filepath.EvalSymlinks(path); err == nil {
+		path = target
+	}
+	mode := os.FileMode(0o644)
+	if st, err := os.Stat(path); err == nil {
+		mode = st.Mode().Perm()
+	}
 	tmp, err := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+".*")
 	if err != nil {
 		return err
 	}
-	_, werr := tmp.Write(data)
-	cerr := tmp.Close()
-	if err := errors.Join(werr, cerr); err != nil {
+	if _, err = tmp.Write(data); err == nil {
+		err = tmp.Chmod(mode)
+	}
+	if err == nil {
+		err = tmp.Sync()
+	}
+	if cerr := tmp.Close(); err == nil {
+		err = cerr
+	}
+	if err != nil {
 		os.Remove(tmp.Name())
 		return err
 	}
-	if err := os.Chmod(tmp.Name(), 0o644); err != nil {
+	if err := os.Rename(tmp.Name(), path); err != nil {
 		os.Remove(tmp.Name())
 		return err
 	}
-	return os.Rename(tmp.Name(), path)
+	// The rename is a directory entry: sync the directory so it too
+	// survives a crash.
+	dir, err := os.Open(filepath.Dir(path))
+	if err != nil {
+		return err
+	}
+	defer dir.Close()
+	return dir.Sync()
 }

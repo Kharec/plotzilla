@@ -11,6 +11,10 @@ version is in the `VERSION` file.
 
 - The unsaved-changes marker is now updated atomically: an edit landing while a save
   finished could make the close confirmation unreliable.
+- Saving is now durable: the file is synced to disk before it replaces the old one (a
+  power cut just after a save could leave an empty script). An existing file keeps its
+  permissions, and saving through a symlink replaces the file it points to instead of
+  replacing the link.
 
 ## [1.4] - 2026-10-15
 
