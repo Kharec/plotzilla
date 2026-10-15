@@ -17,6 +17,8 @@ version is in the `VERSION` file.
 
 - `plotzilla new-script.fountain` opens a new script that will be saved to that file,
   instead of an untitled document that forgot the name it was given.
+- A Final Draft file named `.txt` (or anything but `.fdx`) is recognised by its
+  content and opened as FDX, not parsed as Fountain.
 - The unsaved-changes marker is now updated atomically: an edit landing while a save
   finished could make the close confirmation unreliable.
 - Saving is now durable: the file is synced to disk before it replaces the old one (a

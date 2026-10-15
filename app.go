@@ -118,7 +118,7 @@ func (a *App) load(path string) (*OpenResult, error) {
 		return nil, err
 	}
 	var doc *screenplay.Document
-	if strings.EqualFold(filepath.Ext(path), ".fdx") {
+	if isFDX(path, data) {
 		if doc, err = fdx.Read(bytes.NewReader(data)); err != nil {
 			return nil, err
 		}
@@ -126,6 +126,16 @@ func (a *App) load(path string) (*OpenResult, error) {
 		doc = fountain.Parse(string(data))
 	}
 	return &OpenResult{Path: path, Document: doc}, nil
+}
+
+// isFDX reports whether a file is a Final Draft one: the extension says
+// so, or its content does — a ".txt" export of Final Draft is still FDX.
+func isFDX(path string, data []byte) bool {
+	if strings.EqualFold(filepath.Ext(path), ".fdx") {
+		return true
+	}
+	head := strings.TrimPrefix(string(data[:min(len(data), 512)]), "\ufeff")
+	return strings.Contains(head, "<FinalDraft")
 }
 
 // Save writes the document to path, asking for one when empty. It returns
