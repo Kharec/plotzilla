@@ -473,7 +473,8 @@ The title page and first pages of a sample script, as exported:
 ![PDF output](screenshots/pdf-output.png)
 
 The standard Courier fonts cover Western European characters (accents, curly quotes, dashes).
-Other characters, such as Greek, Cyrillic or Asian scripts, are printed as `?`.
+Other characters, such as Greek, Cyrillic or Asian scripts, are printed as `?`: the export then
+warns and lists them, so they are not lost silently.
 
 **Final Draft** (`Ctrl+Shift+E`): writes an `.fdx` file that opens in Final Draft and other apps
 that read FDX.
