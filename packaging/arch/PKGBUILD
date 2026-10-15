@@ -1,7 +1,7 @@
 # Maintainer: Sandro Cazzaniga <sandro@cazzaniga.fr>
 
 pkgname=plotzilla
-pkgver=1.2
+pkgver=1.4
 pkgrel=1
 pkgdesc='Screenwriting app for Linux: scripts in the Hollywood standard format, Fountain, FDX and PDF'
 arch=('x86_64' 'aarch64')

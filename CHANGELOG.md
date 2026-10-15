@@ -7,6 +7,8 @@ version is in the `VERSION` file.
 
 ## [Unreleased]
 
+## [1.4] - 2026-10-15
+
 ### Fixed
 
 - The Cancel button responds while the translation model is loading.

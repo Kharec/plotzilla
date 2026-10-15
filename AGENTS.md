@@ -81,7 +81,7 @@ frontend/src/icons.ts   inline Lucide-style SVG icons
 frontend/src/style.css  the whole UI theme (dark, blue) and the on-screen page geometry
 screenshots/            README images (2880×1800 UI captures + pdf-output.png)
 tools/screenshots/      `make screenshots`: sample script, mock server (main.go), Firefox capture (capture.mjs)
-VERSION                 current version (1.0)
+VERSION                 current version
 CHANGELOG.md            Keep a Changelog; sections Added, Changed, Fixed only
 ```
 
