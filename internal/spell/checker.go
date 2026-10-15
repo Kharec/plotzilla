@@ -90,6 +90,12 @@ func (c *Checker) Add(word string) {
 
 func normalize(w string) string { return strings.ReplaceAll(w, "’", "'") }
 
+// cacheLimit bounds the remembered answers, which are keyed on user input:
+// a long session of typos would grow the map forever otherwise. When full,
+// the cache is cleared and refilled; a script repeats the same words, so
+// re-checks are cheap.
+const cacheLimit = 10000
+
 // Check reports whether word is correct. Words with digits ("3rd", "R2D2")
 // and single letters are always accepted.
 func (c *Checker) Check(word string) bool {
@@ -104,6 +110,9 @@ func (c *Checker) Check(word string) bool {
 	}
 	ok, found := c.cache[word]
 	if !found {
+		if len(c.cache) >= cacheLimit {
+			clear(c.cache)
+		}
 		ok = c.dict.Check(word)
 		c.cache[word] = ok
 	}

@@ -180,6 +180,35 @@ func TestLatin1(t *testing.T) {
 	}
 }
 
+func TestCheckerCacheBound(t *testing.T) {
+	d, err := Parse([]byte("SET UTF-8\n"), []byte("1\nknown\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := NewChecker(d, nil)
+	// letters encodes n in bijective base 26: distinct pure-letter words.
+	letters := func(n int) string {
+		var w []rune
+		for {
+			w = append([]rune{rune('a' + n%26)}, w...)
+			if n < 26 {
+				return string(w)
+			}
+			n = n/26 - 1
+		}
+	}
+	for i := range 2 * cacheLimit {
+		c.Check(letters(i))
+	}
+	if len(c.cache) > cacheLimit {
+		t.Errorf("cache holds %d words, limit %d", len(c.cache), cacheLimit)
+	}
+	// The answers are unchanged by a clear.
+	if !c.Check("known") || c.Check("knownn") {
+		t.Error("wrong answers after the cache cleared")
+	}
+}
+
 func TestWords(t *testing.T) {
 	got := Words("Élise's well-known R2D2, l’homme… 'quoted' x")
 	want := []Word{
