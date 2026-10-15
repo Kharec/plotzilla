@@ -35,7 +35,7 @@ const (
 )
 
 // errStalled aborts a download that receives nothing for stallTimeout.
-var errStalled = errors.New("the download stalled (no data received for 30 seconds)")
+var errStalled = fmt.Errorf("the download stalled (no data received for %s)", stallTimeout)
 
 var modelFiles = []marian.RemoteFile{
 	{Name: "config.json", Size: 1416, SHA256: "b3be13d046d9899d7aab8cf4ed624d9a79f5776038ba793f6b4d2ce3e02192f7"},
