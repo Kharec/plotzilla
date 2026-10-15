@@ -7,6 +7,8 @@ version is in the `VERSION` file.
 
 ## [Unreleased]
 
+## [1.4.1] - 2026-10-15
+
 ### Added
 
 - The PDF export warns when the script contains characters the standard PDF fonts
