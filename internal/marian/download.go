@@ -21,16 +21,6 @@ type RemoteFile struct {
 	SHA256 string
 }
 
-// Installed reports whether dir holds every file of a model.
-func Installed(dir string) bool {
-	for _, f := range Files {
-		if st, err := os.Stat(filepath.Join(dir, f)); err != nil || st.Size() == 0 {
-			return false
-		}
-	}
-	return true
-}
-
 // Download fetches files into dir. A file already there with the right
 // size and digest is skipped. A file is downloaded into a ".partial" file
 // that is renamed only once its digest checks out, so an interrupted

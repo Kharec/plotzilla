@@ -26,9 +26,6 @@ import (
 	"path/filepath"
 )
 
-// Files are the files a model directory must contain.
-var Files = []string{"config.json", "model.safetensors", "source.spm", "target.spm", "vocab.json"}
-
 type config struct {
 	DModel          int    `json:"d_model"`
 	EncoderLayers   int    `json:"encoder_layers"`

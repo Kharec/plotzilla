@@ -251,9 +251,6 @@ func tinyModel(t *testing.T) string {
 
 func TestTinyModel(t *testing.T) {
 	dir := tinyModel(t)
-	if !Installed(dir) {
-		t.Fatal("tiny model not installed")
-	}
 	m, err := Load(context.Background(), dir)
 	if err != nil {
 		t.Fatal(err)
@@ -281,9 +278,6 @@ func TestTinyModel(t *testing.T) {
 	}
 
 	os.Remove(filepath.Join(dir, "vocab.json"))
-	if Installed(dir) {
-		t.Error("incomplete model reported installed")
-	}
 	if _, err := Load(context.Background(), dir); err == nil {
 		t.Error("incomplete model loaded")
 	}
