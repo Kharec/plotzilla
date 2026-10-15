@@ -89,13 +89,18 @@ func (a *App) beforeClose(ctx context.Context) bool {
 
 func (a *App) NewDocument() *screenplay.Document { return screenplay.New() }
 
-// InitialFile returns the script passed on the command line, if any.
+// InitialFile returns the script passed on the command line, if any. A
+// path that does not exist yet opens a new script, written there on the
+// first save: `plotzilla new-script.fountain` creates the file.
 func (a *App) InitialFile() (*OpenResult, error) {
 	if a.initialPath == "" {
 		return nil, nil
 	}
 	path := a.initialPath
 	a.initialPath = ""
+	if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
+		return &OpenResult{Path: path, Document: screenplay.New()}, nil
+	}
 	return a.load(path)
 }
 

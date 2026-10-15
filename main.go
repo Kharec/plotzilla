@@ -29,9 +29,7 @@ func main() {
 	app := NewApp()
 	for _, arg := range os.Args[1:] {
 		if !strings.HasPrefix(arg, "-") {
-			if _, err := os.Stat(arg); err == nil {
-				app.initialPath = arg
-			}
+			app.initialPath = arg // may not exist yet: then it is a new script
 			break
 		}
 	}
