@@ -60,10 +60,12 @@ type decoderLayer struct {
 	finalLayerNorm      layerNorm
 }
 
-// Model is a loaded translation model. It is read-only once loaded:
-// Translate may be called from several goroutines at once.
+// Model is a loaded translation model. It is read-only once loaded (but
+// for SetThreads, right after Load): Translate may be called from several
+// goroutines at once.
 type Model struct {
 	cfg        config
+	threads    int       // goroutines a decoding step may start (0: one per CPU)
 	embed      []float32 // vocab × d, shared by encoder, decoder and output
 	encPos     []float32 // positions × d
 	decPos     []float32
@@ -220,6 +222,13 @@ func (m *Model) bind(t map[string]tensor) error {
 	}
 	return missing
 }
+
+// SetThreads caps how many goroutines each decoding step starts (0: one
+// per CPU, the default). When several sentences are translated at once,
+// give each its share of the CPUs, or every step of every sentence starts
+// a team of goroutines and they oversubscribe the machine. It must be
+// called before the first Translate.
+func (m *Model) SetThreads(n int) { m.threads = n }
 
 // maxSourceTokens leaves room for the end-of-sentence token.
 func (m *Model) maxSourceTokens() int { return m.cfg.MaxPositions - 1 }

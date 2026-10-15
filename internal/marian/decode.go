@@ -212,6 +212,9 @@ func (m *Model) decodeStep(b *beam, crossK, crossV [][]float32, srcLen int, s *d
 func (m *Model) logProbs(hidden, out [][]float32) [][]float32 {
 	d, vocab := m.cfg.DModel, m.cfg.VocabSize
 	workers := runtime.GOMAXPROCS(0)
+	if m.threads > 0 {
+		workers = min(workers, m.threads)
+	}
 	chunk := (vocab + workers - 1) / workers
 	var wg sync.WaitGroup
 	for lo := 0; lo < vocab; lo += chunk {

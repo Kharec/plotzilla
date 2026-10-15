@@ -232,10 +232,8 @@ func (a *App) Translate(doc screenplay.Document, elements []int, titlePage bool)
 	res, err := translate.Document(ctx, &doc, model, lexicon, translate.Options{
 		Elements:  elements,
 		TitlePage: titlePage,
-		// The model splits its largest product across every CPU already:
-		// half as many sentences at once keeps the machine responsive.
-		Workers:  max(1, runtime.NumCPU()/2),
-		Progress: func(done, total int) { emit(int64(done), int64(total)) },
+		Workers:   translateWorkers(),
+		Progress:  func(done, total int) { emit(int64(done), int64(total)) },
 	})
 	if errors.Is(err, context.Canceled) {
 		return nil, nil
@@ -245,6 +243,10 @@ func (a *App) Translate(doc screenplay.Document, elements []int, titlePage bool)
 	}
 	return &res, nil
 }
+
+// translateWorkers is how many sentences are translated at once: half the
+// CPUs, and each one splits its decoding steps across its share of them.
+func translateWorkers() int { return max(1, runtime.NumCPU()/2) }
 
 // translator returns the model and the dictionaries that help tell French
 // from English, loading them the first time. The load happens without
@@ -271,6 +273,9 @@ func (a *App) translator(ctx context.Context) (*marian.Model, translate.Lexicon,
 		}
 		return nil, nil, fmt.Errorf("loading the translation model: %w", err)
 	}
+	// Every sentence worker gets an equal share of the CPUs for its
+	// decoding steps, so workers × threads never oversubscribe the machine.
+	m.SetThreads(max(1, runtime.NumCPU()/translateWorkers()))
 	lexicon = loadLexicon()
 	a.tr.mu.Lock()
 	if ctx.Err() == nil { // cancelled while loading: cache nothing

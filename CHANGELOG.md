@@ -23,7 +23,9 @@ version is in the `VERSION` file.
   replacing the link.
 - Translation is faster and uses much less memory: the beam search no longer copies
   every beam's decoder state for every candidate at every step, and reuses its
-  work buffers instead of allocating new ones per layer and step.
+  work buffers instead of allocating new ones per layer and step. Each sentence
+  now uses its share of the processors, so translating a script no longer starts
+  more workers than the machine has.
 
 ## [1.4] - 2026-10-15
 
