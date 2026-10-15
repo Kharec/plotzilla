@@ -47,7 +47,7 @@ func main() {
 		BackgroundColour: &options.RGBA{R: 0, G: 0, B: 0, A: 0},
 		OnStartup:        app.startup,
 		OnBeforeClose:    app.beforeClose,
-		Bind:             []interface{}{app},
+		Bind:             []any{app},
 		Linux: &linux.Options{
 			ProgramName:         "plotzilla",
 			Icon:                icon,
