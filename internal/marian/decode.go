@@ -13,7 +13,9 @@ type beam struct {
 	tokens []int // starts with the decoder start token
 	score  float64
 	// Keys and values of the decoder's self-attention, one slice per layer
-	// holding len(tokens) rows: each step only computes its own row.
+	// holding len(tokens) rows: each step only computes its own row. When a
+	// beam is the only survivor of its parent it takes the parent's slices
+	// over instead of copying them (the parent is dead from that step on).
 	keys, values [][]float32
 }
 
@@ -27,6 +29,16 @@ type candidate struct {
 	score         float64
 }
 
+// decoderScratch holds the work buffers of a decoding step, shared by the
+// layers, the beams and the steps of a search: allocating them afresh for
+// every layer of every step costs more than the dot products they serve.
+type decoderScratch struct {
+	q, k, v   []float32
+	ctxv, tmp []float32
+	scores    []float32
+	hidden    []float32
+}
+
 // beamSearch generates the translation, as Hugging Face's generate() does
 // with the model's defaults: num_beams beams, length penalty 1, the
 // padding token never produced.
@@ -35,18 +47,32 @@ func (m *Model) beamSearch(ctx context.Context, enc []float32, srcLen int) ([]in
 	numBeams := max(m.cfg.NumBeams, 1)
 	crossK := make([][]float32, len(m.decoder))
 	crossV := make([][]float32, len(m.decoder))
+	ffn := 0
 	for i, l := range m.decoder {
 		crossK[i] = make([]float32, srcLen*d)
 		crossV[i] = make([]float32, srcLen*d)
 		l.cross.k.rows(crossK[i], enc, srcLen)
 		l.cross.v.rows(crossV[i], enc, srcLen)
+		ffn = max(ffn, l.fc1.out)
+	}
+	maxLen := min(m.cfg.MaxPositions-1, 2*srcLen+10)
+	scratch := &decoderScratch{
+		q: make([]float32, d), k: make([]float32, d), v: make([]float32, d),
+		ctxv: make([]float32, d), tmp: make([]float32, d),
+		scores: make([]float32, max(maxLen+1, srcLen)),
+		hidden: make([]float32, ffn),
+	}
+	// One vocabulary of logits per beam, reused at every step: the largest
+	// allocation of the search.
+	probs := make([][]float32, numBeams)
+	for i := range probs {
+		probs[i] = make([]float32, m.cfg.VocabSize)
 	}
 	beams := []beam{{
 		tokens: []int{m.cfg.DecoderStart},
 		keys:   make([][]float32, len(m.decoder)),
 		values: make([][]float32, len(m.decoder)),
 	}}
-	maxLen := min(m.cfg.MaxPositions-1, 2*srcLen+10)
 	var done []hypothesis
 	for len(beams[0].tokens) <= maxLen {
 		if err := ctx.Err(); err != nil {
@@ -54,9 +80,9 @@ func (m *Model) beamSearch(ctx context.Context, enc []float32, srcLen int) ([]in
 		}
 		hidden := make([][]float32, len(beams))
 		for i := range beams {
-			hidden[i] = m.decodeStep(&beams[i], crossK, crossV, srcLen)
+			hidden[i] = m.decodeStep(&beams[i], crossK, crossV, srcLen, scratch)
 		}
-		logProbs := m.logProbs(hidden)
+		logProbs := m.logProbs(hidden, probs[:len(beams)])
 		var cands []candidate
 		for i, lp := range logProbs {
 			for _, t := range topK(lp, 2*numBeams) {
@@ -72,29 +98,45 @@ func (m *Model) beamSearch(ctx context.Context, enc []float32, srcLen int) ([]in
 			}
 			return 0
 		})
-		var next []beam
+		// Choose the surviving beams first, then build them: a cache is
+		// copied at most once per step, and only when several survivors
+		// share its parent.
+		children := make([]int, len(beams))
+		chosen := make([]candidate, 0, numBeams)
 		for rank, c := range cands {
-			parent := beams[c.parent]
 			if c.token == m.cfg.EOSToken {
 				if rank < numBeams {
+					parent := beams[c.parent]
 					done = append(done, hypothesis{tokens: slices.Clone(parent.tokens), score: c.score / float64(len(parent.tokens))})
 				}
 				continue
 			}
+			chosen = append(chosen, c)
+			children[c.parent]++
+			if len(chosen) == numBeams {
+				break
+			}
+		}
+		next := make([]beam, 0, len(chosen))
+		for _, c := range chosen {
+			parent := &beams[c.parent]
 			child := beam{
 				tokens: append(slices.Clone(parent.tokens), c.token),
 				score:  c.score,
 				keys:   make([][]float32, len(parent.keys)),
 				values: make([][]float32, len(parent.values)),
 			}
+			takeOver := children[c.parent] == 1
 			for l := range parent.keys {
-				child.keys[l] = slices.Clone(parent.keys[l])
-				child.values[l] = slices.Clone(parent.values[l])
+				if takeOver {
+					child.keys[l] = parent.keys[l]
+					child.values[l] = parent.values[l]
+				} else {
+					child.keys[l] = slices.Clone(parent.keys[l])
+					child.values[l] = slices.Clone(parent.values[l])
+				}
 			}
 			next = append(next, child)
-			if len(next) == numBeams {
-				break
-			}
 		}
 		slices.SortStableFunc(done, func(a, b hypothesis) int {
 			switch {
@@ -126,22 +168,17 @@ func (m *Model) beamSearch(ctx context.Context, enc []float32, srcLen int) ([]in
 
 // decodeStep runs the decoder for the beam's last token and returns its
 // output vector.
-func (m *Model) decodeStep(b *beam, crossK, crossV [][]float32, srcLen int) []float32 {
+func (m *Model) decodeStep(b *beam, crossK, crossV [][]float32, srcLen int, s *decoderScratch) []float32 {
 	d := m.cfg.DModel
 	pos := len(b.tokens) - 1
 	tok := b.tokens[pos]
-	x := make([]float32, d)
+	x := make([]float32, d) // the beam's output vector, which lives past the step
 	emb := m.embed[tok*d : (tok+1)*d]
 	p := m.decPos[pos*d : (pos+1)*d]
 	for j := range x {
 		x[j] = emb[j]*m.embedScale + p[j]
 	}
-	q := make([]float32, d)
-	k := make([]float32, d)
-	v := make([]float32, d)
-	ctxv := make([]float32, d)
-	tmp := make([]float32, d)
-	scores := make([]float32, max(pos+1, srcLen))
+	q, k, v, ctxv, tmp, scores := s.q, s.k, s.v, s.ctxv, s.tmp, s.scores
 	for i, l := range m.decoder {
 		l.self.q.apply(q, x)
 		l.self.k.apply(k, x)
@@ -157,7 +194,7 @@ func (m *Model) decodeStep(b *beam, crossK, crossV [][]float32, srcLen int) []fl
 		l.cross.o.apply(tmp, ctxv)
 		addNorm(x, tmp, l.crossNorm, 1)
 
-		hidden := make([]float32, l.fc1.out)
+		hidden := s.hidden[:l.fc1.out]
 		l.fc1.apply(hidden, x)
 		for j := range hidden {
 			hidden[j] = m.activation(hidden[j])
@@ -169,14 +206,11 @@ func (m *Model) decodeStep(b *beam, crossK, crossV [][]float32, srcLen int) []fl
 }
 
 // logProbs projects each beam's vector on the vocabulary (the embedding
-// matrix, shared with the output layer) and returns log-softmax scores.
-// This is the largest product of a step, so it is split across CPUs.
-func (m *Model) logProbs(hidden [][]float32) [][]float32 {
+// matrix, shared with the output layer) and returns log-softmax scores in
+// out, one vocabulary per beam, reused from step to step. This is the
+// largest product of a step, so it is split across CPUs.
+func (m *Model) logProbs(hidden, out [][]float32) [][]float32 {
 	d, vocab := m.cfg.DModel, m.cfg.VocabSize
-	out := make([][]float32, len(hidden))
-	for i := range out {
-		out[i] = make([]float32, vocab)
-	}
 	workers := runtime.GOMAXPROCS(0)
 	chunk := (vocab + workers - 1) / workers
 	var wg sync.WaitGroup

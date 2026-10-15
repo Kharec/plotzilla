@@ -276,6 +276,11 @@ func (m *Model) encode(ids []int) []float32 {
 	ctxv := make([]float32, n*d)
 	tmp := make([]float32, n*d)
 	scores := make([]float32, n)
+	ffn := 0 // the hidden layer of every encoder layer, allocated once
+	for _, l := range m.encoder {
+		ffn = max(ffn, l.fc1.out)
+	}
+	hidden := make([]float32, n*ffn)
 	for _, l := range m.encoder {
 		l.self.q.rows(q, x, n)
 		l.self.k.rows(k, x, n)
@@ -285,12 +290,12 @@ func (m *Model) encode(ids []int) []float32 {
 		}
 		l.self.o.rows(tmp, ctxv, n)
 		addNorm(x, tmp, l.selfNorm, n)
-		hidden := make([]float32, n*l.fc1.out)
-		l.fc1.rows(hidden, x, n)
-		for i := range hidden {
-			hidden[i] = m.activation(hidden[i])
+		h := hidden[:n*l.fc1.out]
+		l.fc1.rows(h, x, n)
+		for i := range h {
+			h[i] = m.activation(h[i])
 		}
-		l.fc2.rows(tmp, hidden, n)
+		l.fc2.rows(tmp, h, n)
 		addNorm(x, tmp, l.finalLayerNorm, n)
 	}
 	return x

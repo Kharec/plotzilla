@@ -21,6 +21,9 @@ version is in the `VERSION` file.
   power cut just after a save could leave an empty script). An existing file keeps its
   permissions, and saving through a symlink replaces the file it points to instead of
   replacing the link.
+- Translation is faster and uses much less memory: the beam search no longer copies
+  every beam's decoder state for every candidate at every step, and reuses its
+  work buffers instead of allocating new ones per layer and step.
 
 ## [1.4] - 2026-10-15
 
