@@ -947,7 +947,15 @@ const actions: Record<string, () => unknown> = {
         renderPaper()
         settingsChanged()
       }
-      await api.ExportPDF(script(), chosen, app.path).catch(reportError)
+      const res = await api.ExportPDF(script(), chosen, app.path).catch(reportError)
+      if (res?.replaced?.length) {
+        const list = res.replaced.map((c) => `"${c}"`).join(' ')
+        await messageBox({
+          title: 'Characters replaced in the PDF',
+          text: `The standard PDF fonts cannot draw these characters: ${list}. Each one is written as "?" in the exported file.`,
+          ok: 'OK',
+        })
+      }
     }
     dialog.showModal()
   },

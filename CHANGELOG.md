@@ -7,6 +7,12 @@ version is in the `VERSION` file.
 
 ## [Unreleased]
 
+### Added
+
+- The PDF export warns when the script contains characters the standard PDF fonts
+  cannot draw: they are written as `?` in the file, and are now listed in a dialog
+  instead of being silently lost.
+
 ### Fixed
 
 - The unsaved-changes marker is now updated atomically: an edit landing while a save

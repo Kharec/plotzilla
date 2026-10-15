@@ -5,6 +5,7 @@ import (
 	"compress/zlib"
 	"io"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 
@@ -39,8 +40,12 @@ func TestRender(t *testing.T) {
 	pages := []layout.Page{layout.TitlePage(doc.TitlePage, doc.Settings.Paper)}
 	pages = append(pages, layout.Paginate(doc, layout.Options{SceneNumbers: true}).Pages...)
 	var buf bytes.Buffer
-	if err := Render(&buf, pages, Options{Title: doc.TitlePage.Title, Author: doc.TitlePage.Author}); err != nil {
+	replaced, err := Render(&buf, pages, Options{Title: doc.TitlePage.Title, Author: doc.TitlePage.Author})
+	if err != nil {
 		t.Fatal(err)
+	}
+	if len(replaced) != 0 {
+		t.Errorf("the French sample is fully representable, replaced = %q", string(replaced))
 	}
 	out := buf.String()
 	if !strings.HasPrefix(out, "%PDF-1.4") || !strings.HasSuffix(out, "%%EOF\n") || !strings.Contains(out, "/Count 2") {
@@ -61,7 +66,7 @@ func TestRevisionsAndA4(t *testing.T) {
 	doc.Elements[1].Runs[0].Rev = 1
 	var buf bytes.Buffer
 	pages := layout.Paginate(doc, layout.Options{}).Pages
-	if err := Render(&buf, pages, Options{Paper: doc.Settings.Paper, Revisions: doc.Settings.Revisions}); err != nil {
+	if _, err := Render(&buf, pages, Options{Paper: doc.Settings.Paper, Revisions: doc.Settings.Revisions}); err != nil {
 		t.Fatal(err)
 	}
 	stream := uncompressed(t, buf.Bytes())
@@ -74,11 +79,39 @@ func TestRevisionsAndA4(t *testing.T) {
 
 	// Without revisions in the options, nothing is marked.
 	buf.Reset()
-	if err := Render(&buf, pages, Options{Paper: doc.Settings.Paper}); err != nil {
+	if _, err := Render(&buf, pages, Options{Paper: doc.Settings.Paper}); err != nil {
 		t.Fatal(err)
 	}
 	if stream := uncompressed(t, buf.Bytes()); strings.Contains(stream, "Revision") || strings.Contains(stream, "(*)") {
 		t.Errorf("unexpected revision marks:\n%s", stream)
+	}
+}
+
+// TestReplacedChars: characters outside WinAnsi are written as '?' and
+// reported, so an export can warn instead of corrupting the text silently.
+func TestReplacedChars(t *testing.T) {
+	src := "INT. ΚΑΦΕΝΕΙΟ - ΜΕΡΑ\n\nΚαλημέρα… Plain ASCII.\n"
+	doc := fountain.Parse(src)
+	pages := layout.Paginate(doc, layout.Options{}).Pages
+	var buf bytes.Buffer
+	replaced, err := Render(&buf, pages, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := string(replaced)
+	for _, r := range src { // every Greek letter is reported
+		if r > 0x7f && r != '…' && !strings.ContainsRune(got, r) {
+			t.Errorf("%q not reported in %q", r, got)
+		}
+	}
+	if strings.ContainsRune(got, '…') { // WinAnsi has "…"
+		t.Errorf("representable … reported in %q", got)
+	}
+	if !slices.IsSorted(replaced) {
+		t.Errorf("replaced not sorted: %q", got)
+	}
+	if stream := uncompressed(t, buf.Bytes()); !strings.Contains(stream, "????????") {
+		t.Errorf("Greek not written as '?':\n%s", stream)
 	}
 }
 

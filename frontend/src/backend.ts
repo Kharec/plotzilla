@@ -144,13 +144,21 @@ export interface ExportOptions {
   revisions: boolean
 }
 
+/** A written PDF export. */
+export interface ExportResult {
+  /** Empty when the user cancelled the dialog. */
+  path: string
+  /** Characters the standard PDF fonts cannot draw, written as "?" in the file. */
+  replaced?: string[]
+}
+
 interface GoApp {
   NewDocument(): Promise<ScriptDocument>
   InitialFile(): Promise<OpenResult | null>
   Open(): Promise<OpenResult | null>
   Save(doc: ScriptDocument, path: string): Promise<string>
   SaveAs(doc: ScriptDocument, current: string): Promise<string>
-  ExportPDF(doc: ScriptDocument, opts: ExportOptions, current: string): Promise<string>
+  ExportPDF(doc: ScriptDocument, opts: ExportOptions, current: string): Promise<ExportResult>
   ExportFDX(doc: ScriptDocument, current: string): Promise<string>
   Paginate(doc: ScriptDocument): Promise<LayoutInfo>
   ParseFountain(text: string): Promise<Element[] | null>

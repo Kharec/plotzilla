@@ -151,11 +151,19 @@ func (a *App) SaveAs(doc screenplay.Document, current string) (string, error) {
 	return a.Save(doc, path)
 }
 
-func (a *App) ExportPDF(doc screenplay.Document, opts ExportOptions, current string) (string, error) {
+// ExportResult describes a written PDF export.
+type ExportResult struct {
+	Path string `json:"path"` // "" when the user cancelled the dialog
+	// Replaced are the characters the standard PDF fonts cannot draw:
+	// each one is written as "?" in the file.
+	Replaced []string `json:"replaced,omitempty"`
+}
+
+func (a *App) ExportPDF(doc screenplay.Document, opts ExportOptions, current string) (ExportResult, error) {
 	path, err := a.saveDialog("Export PDF", current, ".pdf",
 		[]runtime.FileFilter{{DisplayName: "PDF (*.pdf)", Pattern: "*.pdf"}})
 	if err != nil || path == "" {
-		return "", err
+		return ExportResult{}, err
 	}
 	var pages []layout.Page
 	if opts.TitlePage && !doc.TitlePage.IsEmpty() {
@@ -167,11 +175,18 @@ func (a *App) ExportPDF(doc screenplay.Document, opts ExportOptions, current str
 		pdfOpts.Revisions = doc.Settings.Revisions
 	}
 	var buf bytes.Buffer
-	err = pdf.Render(&buf, pages, pdfOpts)
+	replaced, err := pdf.Render(&buf, pages, pdfOpts)
 	if err != nil {
-		return "", err
+		return ExportResult{}, err
 	}
-	return path, writeAtomic(path, buf.Bytes())
+	if err := writeAtomic(path, buf.Bytes()); err != nil {
+		return ExportResult{}, err
+	}
+	res := ExportResult{Path: path}
+	for _, r := range replaced {
+		res.Replaced = append(res.Replaced, string(r))
+	}
+	return res, nil
 }
 
 func (a *App) ExportFDX(doc screenplay.Document, current string) (string, error) {

@@ -277,7 +277,7 @@ func pdfOutput(src, tmp, path string) error {
 	pages := append([]layout.Page{layout.TitlePage(doc.TitlePage, doc.Settings.Paper)},
 		layout.Paginate(doc, layout.Options{SceneNumbers: true}).Pages...)
 	var b bytes.Buffer
-	if err := pdf.Render(&b, pages, pdf.Options{Title: doc.TitlePage.Title, Author: doc.TitlePage.Author}); err != nil {
+	if _, err := pdf.Render(&b, pages, pdf.Options{Title: doc.TitlePage.Title, Author: doc.TitlePage.Author}); err != nil {
 		return err
 	}
 	file := filepath.Join(tmp, "sample.pdf")

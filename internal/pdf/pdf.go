@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"slices"
 	"strings"
 	"unicode/utf16"
 
@@ -34,8 +35,11 @@ const (
 var fontNames = []string{"Courier", "Courier-Bold", "Courier-Oblique", "Courier-BoldOblique"}
 
 // Render writes pages to w. The title page, if any, must be the first page
-// and have Number 0 so that it is not numbered.
-func Render(w io.Writer, pages []layout.Page, opt Options) error {
+// and have Number 0 so that it is not numbered. It returns, sorted, the
+// characters the standard Courier fonts cannot draw: each one is written
+// as "?" in the output, so the caller can warn instead of corrupting the
+// script silently.
+func Render(w io.Writer, pages []layout.Page, opt Options) ([]rune, error) {
 	geo := layout.PaperGeometry(opt.Paper)
 	var objs [][]byte // objs[i] is object number i+1
 	add := func(s string) int {
@@ -50,11 +54,12 @@ func Render(w io.Writer, pages []layout.Page, opt Options) error {
 	}
 	add(fmt.Sprintf("<< /Title %s /Author %s /Creator (Plotzilla) /Producer (Plotzilla) >>", textString(opt.Title), textString(opt.Author)))
 
+	missing := map[rune]bool{}
 	var kids []string
 	for _, pg := range pages {
-		stream, err := deflate(pageContent(pg, geo, opt.Revisions))
+		stream, err := deflate(pageContent(pg, geo, opt.Revisions, missing))
 		if err != nil {
-			return err
+			return nil, err
 		}
 		content := add(fmt.Sprintf("<< /Length %d /Filter /FlateDecode >>\nstream\n%s\nendstream", len(stream), stream))
 		page := add(fmt.Sprintf("<< /Type /Page /Parent 2 0 R /MediaBox [0 0 %g %g] "+
@@ -80,7 +85,16 @@ func Render(w io.Writer, pages []layout.Page, opt Options) error {
 	}
 	fmt.Fprintf(&buf, "trailer\n<< /Size %d /Root 1 0 R /Info 7 0 R >>\nstartxref\n%d\n%%%%EOF\n", len(objs)+1, xref)
 	_, err := w.Write(buf.Bytes())
-	return err
+	return sortedRunes(missing), err
+}
+
+func sortedRunes(set map[rune]bool) []rune {
+	out := make([]rune, 0, len(set))
+	for r := range set {
+		out = append(out, r)
+	}
+	slices.Sort(out)
+	return out
 }
 
 // points converts inches to PDF points, rounded to 1/100 pt.
@@ -92,16 +106,16 @@ func baseline(geo layout.Geometry, row int) float64 {
 	return top - float64(row)*fontSize - 9
 }
 
-func text(b *bytes.Buffer, x, y float64, s string) {
-	fmt.Fprintf(b, "BT /F1 12 Tf %.2f %.2f Td %s Tj ET\n", x, y, pdfString(s))
+func text(b *bytes.Buffer, x, y float64, s string, missing map[rune]bool) {
+	fmt.Fprintf(b, "BT /F1 12 Tf %.2f %.2f Td %s Tj ET\n", x, y, pdfString(s, missing))
 }
 
-func pageContent(pg layout.Page, geo layout.Geometry, revisions []screenplay.Revision) []byte {
+func pageContent(pg layout.Page, geo layout.Geometry, revisions []screenplay.Revision, missing map[rune]bool) []byte {
 	var b bytes.Buffer
 	header := (geo.Height-0.5)*ptPerIn - 9
 	if pg.Number > 0 && pg.Label != "" && pg.Label != "1" {
 		num := pg.Label + "."
-		text(&b, layout.RightEdge*ptPerIn-float64(len([]rune(num)))*fontSize*0.6, header, num)
+		text(&b, layout.RightEdge*ptPerIn-float64(len([]rune(num)))*fontSize*0.6, header, num, missing)
 	}
 	// A revised page names its revision; its latest changes are starred.
 	rev := pg.Rev()
@@ -114,17 +128,17 @@ func pageContent(pg layout.Page, geo layout.Geometry, revisions []screenplay.Rev
 		if r.Date != "" {
 			label += " - " + r.Date
 		}
-		text(&b, 1.5*ptPerIn, header, label)
+		text(&b, 1.5*ptPerIn, header, label, missing)
 	}
 	for _, ln := range pg.Lines {
 		y := baseline(geo, ln.Row)
 		x := ln.X * ptPerIn
 		if ln.SceneNumber != "" {
-			text(&b, 0.75*ptPerIn, y, ln.SceneNumber)
-			text(&b, geo.SceneNumber*ptPerIn, y, ln.SceneNumber)
+			text(&b, 0.75*ptPerIn, y, ln.SceneNumber, missing)
+			text(&b, geo.SceneNumber*ptPerIn, y, ln.SceneNumber, missing)
 		}
 		if rev > 0 && ln.Rev == rev {
-			text(&b, geo.RevisionMark*ptPerIn, y, "*")
+			text(&b, geo.RevisionMark*ptPerIn, y, "*", missing)
 		}
 		fmt.Fprintf(&b, "BT %.2f %.2f Td ", x, y)
 		cursor := x
@@ -142,7 +156,7 @@ func pageContent(pg layout.Page, geo layout.Geometry, revisions []screenplay.Rev
 				underlines = append(underlines, [2]float64{cursor, cursor + width})
 			}
 			cursor += width
-			fmt.Fprintf(&b, "/F%d 12 Tf %s Tj ", font, pdfString(s.Text))
+			fmt.Fprintf(&b, "/F%d 12 Tf %s Tj ", font, pdfString(s.Text, missing))
 		}
 		b.WriteString("ET\n")
 		for _, u := range underlines {
@@ -164,12 +178,16 @@ func deflate(data []byte) ([]byte, error) {
 	return b.Bytes(), nil
 }
 
-// pdfString encodes s as a WinAnsi literal string for the Courier fonts.
-func pdfString(s string) string {
+// pdfString encodes s as a WinAnsi literal string for the Courier fonts,
+// recording in missing the characters they cannot draw.
+func pdfString(s string, missing map[rune]bool) string {
 	var b strings.Builder
 	b.WriteByte('(')
 	for _, r := range s {
-		c := winAnsi(r)
+		c, ok := winAnsi(r)
+		if !ok {
+			missing[r] = true
+		}
 		if c == '(' || c == ')' || c == '\\' {
 			b.WriteByte('\\')
 		}
@@ -189,7 +207,7 @@ func textString(s string) string {
 		}
 	}
 	if ascii {
-		return pdfString(s)
+		return pdfString(s, map[rune]bool{}) // ASCII only: nothing to record
 	}
 	var b strings.Builder
 	b.WriteString("<FEFF")
@@ -207,18 +225,20 @@ var cp1252 = map[rune]byte{
 	'˜': 0x98, '™': 0x99, 'š': 0x9a, '›': 0x9b, 'œ': 0x9c, 'ž': 0x9e, 'Ÿ': 0x9f,
 }
 
-func winAnsi(r rune) byte {
+// winAnsi encodes r as a WinAnsi byte; ok is false when the standard
+// fonts cannot draw r and '?' is written instead.
+func winAnsi(r rune) (c byte, ok bool) {
 	switch {
 	case r >= 0x20 && r < 0x7f:
-		return byte(r)
+		return byte(r), true
 	case r >= 0xa0 && r <= 0xff:
-		return byte(r)
+		return byte(r), true
 	}
 	if c, ok := cp1252[r]; ok {
-		return c
+		return c, true
 	}
 	if r == ' ' || r == ' ' {
-		return ' ' // narrow spaces used before French punctuation
+		return ' ', true // narrow spaces used before French punctuation
 	}
-	return '?'
+	return '?', false
 }
