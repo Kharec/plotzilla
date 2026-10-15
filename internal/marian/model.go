@@ -3,6 +3,18 @@
 // plain Go: a SentencePiece tokenizer, the transformer encoder-decoder and
 // beam search. A model directory holds config.json, model.safetensors,
 // source.spm, target.spm and vocab.json.
+//
+// The engine lives in-tree on purpose. Plotzilla ships as one binary built
+// with only the Go toolchain: a native runtime (ctranslate2, argos) would
+// add cgo and per-distribution packaging, and a separate binary or plugin
+// an install step, all for a single menu item. Translation is offline by
+// design — an unpublished script never leaves the machine — and the model
+// is data downloaded at runtime (Apache-2.0), so neither the "no
+// third-party dependency" rule nor the GPL is affected. The screenplay
+// conventions stay out of this package (internal/translate owns them) and
+// the pipeline is covered by a synthetic tiny model and, on demand, the
+// real one. If more language pairs are ever added, each with its own
+// 300 MB download and quirks, reconsider a separate optional component.
 package marian
 
 import (

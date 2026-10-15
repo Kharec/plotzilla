@@ -62,7 +62,8 @@ internal/layout         line wrapping + pagination (paper sizes, locked pages); 
 internal/pdf            hand-written PDF 1.4 writer, standard Courier fonts, zero dependencies
 internal/spell          Hunspell .aff/.dic reader, checker (compounds too), suggestions, word scan
 internal/marian         MarianMT (OPUS-MT) inference in pure Go: safetensors, SentencePiece unigram,
-                        transformer encoder-decoder, beam search, verified download
+                        transformer encoder-decoder, beam search, verified download. In-tree on
+                        purpose (one binary, no cgo, offline by design): see the package doc.
 internal/translate      French → English script translation: language detection, screenplay term
                         tables, per-element rules, name protection, parallel sentence translation
 frontend/index.html     app shell: header bar, navigator, paper, HUD, <dialog>s
