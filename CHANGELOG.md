@@ -7,6 +7,11 @@ version is in the `VERSION` file.
 
 ## [Unreleased]
 
+### Fixed
+
+- The unsaved-changes marker is now updated atomically: an edit landing while a save
+  finished could make the close confirmation unreliable.
+
 ## [1.4] - 2026-10-15
 
 ### Fixed

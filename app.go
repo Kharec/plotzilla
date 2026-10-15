@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
@@ -24,8 +25,11 @@ import (
 
 // App is bound to the frontend: every exported method is callable from JS.
 type App struct {
-	ctx         context.Context
-	dirty       bool
+	ctx context.Context
+	// dirty decides whether closing the window asks for confirmation. It is
+	// written from Wails call goroutines (SetDirty) and read by the GTK
+	// close handler: atomic, like spellMu protects the checker.
+	dirty       atomic.Bool
 	initialPath string
 
 	// Wails runs each call on its own goroutine: spelling calls share one
@@ -74,7 +78,7 @@ func (a *App) startup(ctx context.Context) {
 // beforeClose keeps the window open while there are unsaved changes and
 // lets the frontend ask; it quits again once the user has decided.
 func (a *App) beforeClose(ctx context.Context) bool {
-	if !a.dirty {
+	if !a.dirty.Load() {
 		return false
 	}
 	runtime.EventsEmit(a.ctx, "confirm-close")
@@ -201,7 +205,7 @@ func (a *App) RevisionSet(n int) screenplay.Revision {
 	return r
 }
 
-func (a *App) SetDirty(dirty bool) { a.dirty = dirty }
+func (a *App) SetDirty(dirty bool) { a.dirty.Store(dirty) }
 
 // dataDir is the XDG data directory (~/.local/share).
 func dataDir() string {
