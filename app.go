@@ -33,10 +33,12 @@ type App struct {
 	initialPath string
 
 	// Wails runs each call on its own goroutine: spelling calls share one
-	// loaded dictionary.
+	// loaded dictionary. dicts caches them per language so the translation's
+	// language detection does not read the same files again.
 	spellMu     sync.Mutex
 	checker     *spell.Checker
 	checkerLang string
+	dicts       map[string]*spell.Dictionary
 
 	tr translation
 }
@@ -294,6 +296,28 @@ func (a *App) SpellLanguages() SpellInfo {
 	return SpellInfo{Languages: codes, Default: spell.Preferred(codes, locale)}
 }
 
+// dictionaryLocked returns the Hunspell dictionary for a language code
+// ("en_US"), loading it the first time. spellMu must be held.
+func (a *App) dictionaryLocked(code string) (*spell.Dictionary, error) {
+	if d, ok := a.dicts[code]; ok {
+		return d, nil
+	}
+	langs := spell.Available(dictionaryDirs())
+	i := slices.IndexFunc(langs, func(l spell.Language) bool { return l.Code == code })
+	if i < 0 {
+		return nil, fmt.Errorf("no %s dictionary installed", code)
+	}
+	d, err := spell.Load(langs[i].Aff, langs[i].Dic)
+	if err != nil {
+		return nil, fmt.Errorf("loading the %s dictionary: %w", code, err)
+	}
+	if a.dicts == nil {
+		a.dicts = map[string]*spell.Dictionary{}
+	}
+	a.dicts[code] = d
+	return d, nil
+}
+
 // spellChecker returns the checker for lang, loading its dictionary the
 // first time it is asked for.
 func (a *App) spellChecker(lang string) (*spell.Checker, error) {
@@ -302,15 +326,9 @@ func (a *App) spellChecker(lang string) (*spell.Checker, error) {
 	if a.checker != nil && a.checkerLang == lang {
 		return a.checker, nil
 	}
-	langs := spell.Available(dictionaryDirs())
-	i := slices.IndexFunc(langs, func(l spell.Language) bool { return l.Code == lang })
-	if i < 0 {
-		return nil, fmt.Errorf("no %s dictionary installed", lang)
-	}
-	l := langs[i]
-	dict, err := spell.Load(l.Aff, l.Dic)
+	dict, err := a.dictionaryLocked(lang)
 	if err != nil {
-		return nil, fmt.Errorf("loading the %s dictionary: %w", lang, err)
+		return nil, err
 	}
 	var personal []string
 	if data, err := os.ReadFile(personalDictionaryPath()); err == nil {

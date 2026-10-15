@@ -276,7 +276,7 @@ func (a *App) translator(ctx context.Context) (*marian.Model, translate.Lexicon,
 	// Every sentence worker gets an equal share of the CPUs for its
 	// decoding steps, so workers × threads never oversubscribe the machine.
 	m.SetThreads(max(1, runtime.NumCPU()/translateWorkers()))
-	lexicon = loadLexicon()
+	lexicon = a.loadLexicon()
 	a.tr.mu.Lock()
 	if ctx.Err() == nil { // cancelled while loading: cache nothing
 		a.tr.model, a.tr.lexicon = m, lexicon
@@ -316,25 +316,32 @@ func (l lexicon) Knows(word string) (french, english bool) { return l.fr.Check(w
 
 // loadLexicon needs both a French and an English dictionary: with one
 // only, every word it knows would count for its language. Without them,
-// detection relies on function words and accents.
-func loadLexicon() translate.Lexicon {
+// detection relies on function words and accents. The dictionaries come
+// from the same cache as the spell checker's: a Dictionary is read-only
+// once loaded, so it can be shared.
+func (a *App) loadLexicon() translate.Lexicon {
 	langs := spell.Available(dictionaryDirs())
-	load := func(lang, preferred string) *spell.Dictionary {
-		i := slices.IndexFunc(langs, func(l spell.Language) bool { return l.Code == preferred })
-		if i < 0 {
-			i = slices.IndexFunc(langs, func(l spell.Language) bool { return strings.HasPrefix(l.Code, lang+"_") })
+	pick := func(lang, preferred string) string {
+		if i := slices.IndexFunc(langs, func(l spell.Language) bool { return l.Code == preferred }); i >= 0 {
+			return langs[i].Code
 		}
-		if i < 0 {
-			return nil
+		if i := slices.IndexFunc(langs, func(l spell.Language) bool { return strings.HasPrefix(l.Code, lang+"_") }); i >= 0 {
+			return langs[i].Code
 		}
-		d, err := spell.Load(langs[i].Aff, langs[i].Dic)
-		if err != nil {
-			return nil
-		}
-		return d
+		return ""
 	}
-	fr, en := load("fr", "fr_FR"), load("en", "en_US")
-	if fr == nil || en == nil {
+	frCode, enCode := pick("fr", "fr_FR"), pick("en", "en_US")
+	if frCode == "" || enCode == "" {
+		return nil
+	}
+	a.spellMu.Lock()
+	defer a.spellMu.Unlock()
+	fr, err := a.dictionaryLocked(frCode)
+	if err != nil {
+		return nil
+	}
+	en, err := a.dictionaryLocked(enCode)
+	if err != nil {
 		return nil
 	}
 	return lexicon{fr, en}
